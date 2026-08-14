@@ -5,6 +5,7 @@ from dataclasses import dataclass, asdict
 import json
 from pathlib import Path
 from typing import Any
+import warnings
 
 import numpy as np
 
@@ -15,6 +16,7 @@ from .schemas import DocumentChunk
 @dataclass(slots=True)
 class RetrievalHit:
     chunk_id: str
+    document_id: str
     score: float
     text: str
     metadata: dict[str, Any]
@@ -31,6 +33,10 @@ class VectorStore(ABC):
 
     @abstractmethod
     def save(self) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def load(self) -> None:
         raise NotImplementedError
 
 
@@ -63,6 +69,7 @@ class NumpyVectorStore(VectorStore):
             hits.append(
                 RetrievalHit(
                     chunk_id=chunk.chunk_id,
+                    document_id=chunk.document_id,
                     score=float(scores[int(idx)]),
                     text=chunk.text,
                     metadata=chunk.metadata,
@@ -78,9 +85,33 @@ class NumpyVectorStore(VectorStore):
         index_path.parent.mkdir(parents=True, exist_ok=True)
         metadata_path.parent.mkdir(parents=True, exist_ok=True)
         np.save(index_path.with_suffix(".npy"), self._embeddings)
+        self._write_metadata(metadata_path)
+
+    def load(self) -> None:
+        index_path = Path(self._config.index_path)
+        metadata_path = Path(self._config.metadata_path)
+        npy_path = index_path.with_suffix(".npy")
+        if not npy_path.exists() or not metadata_path.exists():
+            raise FileNotFoundError(f"Index or metadata missing: {npy_path}, {metadata_path}")
+        self._embeddings = np.load(npy_path)
+        self._chunks = self._read_metadata(metadata_path)
+
+    def _write_metadata(self, metadata_path: Path) -> None:
         with metadata_path.open("w", encoding="utf-8") as handle:
             for chunk in self._chunks:
                 handle.write(json.dumps(asdict(chunk), ensure_ascii=False) + "\n")
+
+    @staticmethod
+    def _read_metadata(metadata_path: Path) -> list[DocumentChunk]:
+        chunks: list[DocumentChunk] = []
+        with metadata_path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                text = line.strip()
+                if not text:
+                    continue
+                payload = json.loads(text)
+                chunks.append(DocumentChunk(**payload))
+        return chunks
 
 
 class FaissVectorStore(VectorStore):
@@ -121,6 +152,7 @@ class FaissVectorStore(VectorStore):
             hits.append(
                 RetrievalHit(
                     chunk_id=chunk.chunk_id,
+                    document_id=chunk.document_id,
                     score=float(score),
                     text=chunk.text,
                     metadata=chunk.metadata,
@@ -140,6 +172,14 @@ class FaissVectorStore(VectorStore):
             for chunk in self._chunks:
                 handle.write(json.dumps(asdict(chunk), ensure_ascii=False) + "\n")
 
+    def load(self) -> None:
+        index_path = Path(self._config.index_path)
+        metadata_path = Path(self._config.metadata_path)
+        if not index_path.exists() or not metadata_path.exists():
+            raise FileNotFoundError(f"Index or metadata missing: {index_path}, {metadata_path}")
+        self._index = self._faiss.read_index(str(index_path))
+        self._chunks = NumpyVectorStore._read_metadata(metadata_path)
+
 
 def build_vector_store(config: VectorConfig) -> VectorStore:
     provider = config.provider.lower()
@@ -149,5 +189,9 @@ def build_vector_store(config: VectorConfig) -> VectorStore:
         try:
             return FaissVectorStore(config)
         except ImportError:
+            warnings.warn(
+                "faiss-cpu is not installed; falling back to the NumPy vector store.",
+                stacklevel=2,
+            )
             return NumpyVectorStore(config)
     raise ValueError(f"Unsupported vector provider: {config.provider}")

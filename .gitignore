@@ -30,12 +30,23 @@ artifacts/
 *.npz
 *.pkl
 
+# Downloaded parquet/model artifacts and partial downloads
+*.parquet
+*.parquet.part
+*.onnx
+*.onnx_data
+*.part
+*.safetensors
+*.bin
+*.h5
+
 # Secrets and environment files
 .env
 .env.*
 *.key
 *.pem
 secrets/
+HF_TOKEN
 
 # OS/editor temp files
 *.tmp

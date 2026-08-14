@@ -19,7 +19,7 @@ class RetrievalEngine:
         for doc in documents:
             chunks.extend(self.chunker.chunk(doc))
 
-        vectors = self.embedder.embed_texts(chunk.text for chunk in chunks)
+        vectors = self.embedder.embed_documents(chunk.text for chunk in chunks)
         self.store.add(vectors, chunks)
         return chunks
 

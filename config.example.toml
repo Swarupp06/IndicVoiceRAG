@@ -1,13 +1,14 @@
 [dataset]
 repo_id = "ai4bharat/MSMARCO-XI"
-split = "train"
+split = "validation"
 config_name = "default"
 streaming = true
-sample_size = 64
+sample_size = 128
 language = "hin"
 revision = "main"
 allow_insecure_ssl = false
-local_sample_path = "" # optional JSONL fallback
+local_sample_path = "" # optional JSONL fallback for fully offline runs
+sample_cache_path = "" # optional; defaults to data/msmarco_xi_<lang>_<split>_sample.jsonl
 cache_dir = ".cache/hf"
 max_retries = 3
 
@@ -19,9 +20,9 @@ semantic_threshold = 0.35
 sentence_separator_regex = "(?<=[.!?])\\s+"
 
 [embedding]
-provider = "hash" # hash | sentence_transformers
-model_name = "hash-256"
-dimension = 256
+provider = "sentence_transformers" # sentence_transformers | fastembed | hash
+model_name = "intfloat/multilingual-e5-small" # or intfloat/multilingual-e5-base
+dimension = 384
 normalize = true
 
 [vector]

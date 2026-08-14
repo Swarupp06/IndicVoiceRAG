@@ -9,7 +9,7 @@ from typing import Any
 @dataclass(slots=True)
 class DatasetConfig:
     repo_id: str = "ai4bharat/MSMARCO-XI"
-    split: str = "train"
+    split: str = "validation"
     config_name: str | None = "default"
     streaming: bool = True
     sample_size: int = 128
@@ -19,6 +19,9 @@ class DatasetConfig:
     revision: str = "main"
     allow_insecure_ssl: bool = False
     local_sample_path: str | None = None
+    sample_cache_path: str | None = None
+    parquet_cache_dir: str | None = None
+    prefer_download: bool = True
 
 
 @dataclass(slots=True)
@@ -32,9 +35,9 @@ class ChunkingConfig:
 
 @dataclass(slots=True)
 class EmbeddingConfig:
-    provider: str = "hash"
-    model_name: str = "hash-256"
-    dimension: int = 256
+    provider: str = "sentence_transformers"
+    model_name: str = "intfloat/multilingual-e5-small"
+    dimension: int = 384
     normalize: bool = True
 
 

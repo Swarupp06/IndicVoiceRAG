@@ -13,6 +13,51 @@ def _first_non_empty(source: dict[str, Any], keys: list[str]) -> Any:
     return None
 
 
+def _language_code(value: Any) -> str | None:
+    """Reduce a language tag like 'hin_Deva' or 'hindi' to a stable code ('hin')."""
+    if value is None:
+        return None
+    text = str(value).strip().lower()
+    if not text:
+        return None
+    code = text.split("_")[0].split("-")[0]
+    aliases = {
+        "english": "en",
+        "eng": "en",
+        "en": "en",
+        "hindi": "hin",
+        "hin": "hin",
+        "marathi": "mar",
+        "mar": "mar",
+        "bengali": "ben",
+        "ben": "ben",
+        "gujarati": "guj",
+        "guj": "guj",
+        "tamil": "tam",
+        "tam": "tam",
+        "telugu": "tel",
+        "tel": "tel",
+        "kannada": "kan",
+        "kan": "kan",
+        "malayalam": "mal",
+        "mal": "mal",
+        "assamese": "asm",
+        "asm": "asm",
+        "nepali": "nep",
+        "nep": "nep",
+        "oriya": "ori",
+        "odia": "ori",
+        "ori": "ori",
+        "punjabi": "pan",
+        "pan": "pan",
+        "sanskrit": "san",
+        "san": "san",
+        "urdu": "urd",
+        "urd": "urd",
+    }
+    return aliases.get(code, code)
+
+
 @dataclass(slots=True)
 class NormalizedDocument:
     document_id: str
@@ -48,9 +93,15 @@ class NormalizedDocument:
         query_id = _first_non_empty(record, ["query_id", "qid", "id_query"])
         query_text = _first_non_empty(record, ["query", "query_text", "question"])
         query_type = _first_non_empty(record, ["query_type", "type"])
-        language = _first_non_empty(record, ["language", "lang", "target_language"]) or fallback_language
-        source_language = _first_non_empty(record, ["source_language", "src_lang"])
-        target_language = _first_non_empty(record, ["target_language", "tgt_lang"])
+        language = _language_code(
+            _first_non_empty(record, ["language", "lang", "target_language", "target_lang", "tgt_lang"])
+        ) or _language_code(fallback_language)
+        source_language = _language_code(
+            _first_non_empty(record, ["source_language", "src_lang", "source_lang"])
+        )
+        target_language = _language_code(
+            _first_non_empty(record, ["target_language", "tgt_lang", "target_lang"])
+        )
         relevance = _first_non_empty(record, ["relevance", "label", "score", "is_relevant"])
 
         raw_doc_id = _first_non_empty(record, ["doc_id", "document_id", "passage_id", "id"])
@@ -71,8 +122,10 @@ class NormalizedDocument:
             "lang",
             "source_language",
             "src_lang",
+            "source_lang",
             "target_language",
             "tgt_lang",
+            "target_lang",
             "relevance",
             "label",
             "score",

@@ -1,45 +1,61 @@
 # IndicVoiceRAG - Phase 1 Foundation
 
-This branch implements the **Phase 1** backend foundation for HH Goa 2026 Task 2:
+Phase 1 backend foundation for HH Goa 2026 Task 2:
 
-**Dataset -> Chunking -> Embedding -> Vector Index -> Retrieval**
+**Real MSMARCO-XI -> Normalization -> Chunking -> Real Multilingual Embeddings -> FAISS Vector Index -> Retrieval -> Retrieval Evaluation**
 
 ## What is implemented
 
-- Dataset access layer for `ai4bharat/MSMARCO-XI` with:
-  - Hugging Face dataset config inspection
-  - Hub parquet file structure inspection
-  - split/language parquet selection (`train/<lang>train.parquet`, `validation/<lang>val.parquet`)
-  - streaming/partial sample loading (no full dataset materialization)
-  - retry-aware loading
-- Normalized document schema preserving:
-  - query/document identifiers
-  - query text and type
-  - language/source/target language
-  - relevance labels/scores where available
-  - additional source metadata
-- Configurable chunking framework with 3 strategies:
-  - fixed token chunking with overlap
-  - sentence-aware chunking
-  - semantic chunking using sentence similarity boundaries
-- Provider-independent embedding layer:
-  - default local `hash` provider (fast, no model download)
-  - optional `sentence_transformers` provider
-- Vector retrieval layer:
-  - vector store interface
-  - FAISS-backed store when available
-  - automatic NumPy fallback when FAISS is unavailable
-  - top-k similarity search with metadata-preserving hits
-- Retrieval evaluation utilities:
-  - Hit@K / Recall@K
-  - MRR primitives
-- CLI tools:
-  - dataset inspection
-  - sample normalization
-  - index build
-  - retrieval query
-  - end-to-end smoke test
-- Unit tests covering all required Phase-1 surfaces.
+### Real dataset access (`ai4bharat/MSMARCO-XI`)
+- Inspects the hub repository: available configs, parquet file layout, remote schema.
+- The dataset exposes only the `default` config; per-language data lives in
+  `train/<lang>train.parquet` / `validation/<lang>val.parquet` (14 Indic languages).
+- Loads a **small real subset** via download-first access
+  (`huggingface_hub.hf_hub_download` + local pyarrow read) - the whole dataset
+  (~55 GB) is never materialized.
+- Real sample is flattened, normalized and cached to
+  `data/msmarco_xi_<lang>_<split>_sample.jsonl` (gitignored) with a provenance
+  sidecar recording the source URL, split, language and fetch time.
+- Real record schema observed (e.g. `validation/hinval.parquet`, 97,941 rows):
+  - `query_id` (int), `query` (translated), `Eng_Query`, `query_type`
+  - `passages{English_passages[], Translated_passages[], is_selected[]}` - real relevance labels
+  - `Answer` / `Eng_Answer`, `source_lang` / `target_lang`, `meta` (generation params)
+
+### Normalization
+- `NormalizedDocument` preserves identifiers, query text/type, source/target
+  language, relevance labels and all extra metadata.
+- `flatten_msmarco_row()` expands each MSMARCO-XI row into per-passage documents
+  carrying the real `is_selected` relevance label.
+
+### Chunking (3 strategies, all tested on real data)
+1. Fixed-size token chunks with overlap
+2. Sentence-aware chunking
+3. Semantic chunking (cosine-similarity sentence boundaries)
+
+### Real multilingual embeddings
+- `sentence_transformers` provider (PyTorch) - default
+  `intfloat/multilingual-e5-small` (384-dim, e5 `query:`/`passage:` prefixes).
+- `fastembed` provider (ONNX runtime) - lightweight CPU alternative.
+- `hash` provider retained for offline unit tests only (NOT a semantic embedding).
+- Model comparison on the identical real sample (2000 docs / 105 queries,
+  Hindi, validation split):
+
+  | Model | Runtime | Dim | Hit@1 | Hit@5 | Hit@10 | MRR | index 2000 docs |
+  |---|---|---|---|---|---|---|---|
+  | `intfloat/multilingual-e5-small` | PyTorch-CPU | 384 | 0.40 | 0.75 | 0.90 | **0.553** | ~84 s |
+  | `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` | ONNX-CPU | 384 | 0.19 | 0.58 | 0.72 | 0.357 | ~125 s |
+
+  **Selected default: `multilingual-e5-small`** - best retrieval quality on
+  Indic data, small (118M params), fast on CPU, 384-dim.
+
+### Vector store
+- FAISS (`IndexFlatIP`) with metadata-preserving hits; NumPy fallback.
+- Persistence: `save()` writes the FAISS index + metadata JSONL; `load()`
+  restores both for retrieval without re-indexing.
+
+### Retrieval & evaluation
+- Top-k similarity retrieval with chunk-level hits aggregated to documents.
+- Hit@K / Recall@K / MRR evaluated against the dataset's real `is_selected` labels.
 
 ## What is NOT implemented yet
 
@@ -54,62 +70,82 @@ This branch implements the **Phase 1** backend foundation for HH Goa 2026 Task 2
 
 ```text
 src/indicvoicerag/
-  cli.py            # CLI entrypoint
+  cli.py            # CLI entrypoint (inspect/sample/build/retrieve/evaluate/smoke)
   config.py         # central TOML config schema + loader
-  dataset.py        # dataset inspector/loader/sampler
-  schemas.py        # normalized document + chunk schema
+  dataset.py        # hub inspector + download-first real parquet access + cache
+  schemas.py        # normalized document schema + real-record flattening
   chunking.py       # fixed/sentence/semantic chunkers
-  embedding.py      # embedding interface + providers
-  vector_store.py   # FAISS/NumPy vector store
+  embedding.py      # real embedding providers (e5 / fastembed / hash)
+  vector_store.py   # FAISS/NumPy store with persistence
   retrieval.py      # retrieval engine
-  evaluation.py     # retrieval metrics foundation
+  evaluation.py     # Hit@K / Recall@K / MRR on real relevance labels
 tests/
-  ...               # unit tests
+  ...               # offline unit tests
 config.example.toml # sample config
 ```
 
 ## Setup
 
-> Python 3.11.9 expected.
+> Python 3.11.9 expected. Real embeddings need torch (CPU) + sentence-transformers;
+> FAISS is optional (NumPy fallback).
 
 ```powershell
-# from repository root
 .venv\Scripts\python.exe -m pip install -e .[dev]
-```
-
-Optional FAISS:
-
-```powershell
-.venv\Scripts\python.exe -m pip install -e .[faiss]
+.venv\Scripts\python.exe -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+.venv\Scripts\python.exe -m pip install sentence-transformers faiss-cpu
+# optional lightweight ONNX backend:
+.venv\Scripts\python.exe -m pip install fastembed
 ```
 
 ## Usage
 
-### 1) Inspect dataset structure and schema sample
+### 1) Inspect the real dataset structure and schema
 
 ```powershell
 .venv\Scripts\python.exe -m indicvoicerag.cli inspect-dataset --rows 5
 ```
 
-### 2) Build a small local sample index
+### 2) Print normalized real documents (first run downloads the real sample once)
 
 ```powershell
-.venv\Scripts\python.exe -m indicvoicerag.cli build-index --size 64 --save
+.venv\Scripts\python.exe -m indicvoicerag.cli sample-docs --size 100
 ```
 
-### 3) Run retrieval
+### 3) Chunk statistics on a real sample (all 3 strategies)
 
 ```powershell
-.venv\Scripts\python.exe -m indicvoicerag.cli retrieve --query "Goa tourism beaches" --size 64 --top-k 5
+.venv\Scripts\python.exe -m indicvoicerag.cli chunk-stats --size 500
 ```
 
-### 4) Run smoke test
+### 4) Build and persist a real index
 
 ```powershell
-.venv\Scripts\python.exe -m indicvoicerag.cli smoke-test --size 32 --query "What is Goa known for?"
+.venv\Scripts\python.exe -m indicvoicerag.cli build-index --size 1000 --save
 ```
 
-Offline smoke (no live HF access):
+### 5) Retrieve with a Hindi query
+
+```powershell
+.venv\Scripts\python.exe -m indicvoicerag.cli retrieve --query "कॉर्पोरेशन क्या है?" --size 1000 --top-k 5
+```
+
+### 6) Real-data retrieval evaluation (Hit@K / Recall@K / MRR)
+
+```powershell
+.venv\Scripts\python.exe -m indicvoicerag.cli evaluate-retrieval --size 2000 --top-k 10
+```
+
+### 7) Real-data + real-embedding smoke test
+
+```powershell
+.venv\Scripts\python.exe -m indicvoicerag.cli smoke-test --query "कॉर्पोरेशन क्या है?" --size 200
+```
+
+The smoke-test output flags `real_msmarco_xi_data_used` and
+`real_embedding_model_used` along with dataset provenance (source URL, split,
+language) and the embedding model description.
+
+Offline smoke (no live HF access, hash embeddings for tests only):
 
 ```powershell
 .venv\Scripts\python.exe -m indicvoicerag.cli --config tests/fixtures/smoke_config.toml smoke-test --query "capital of goa"
@@ -117,9 +153,12 @@ Offline smoke (no live HF access):
 
 ## Notes on dataset handling
 
-- The code does **not** assume a language-specific config like `"mar"`.
-- It inspects available configs from Hugging Face dynamically.
-- It inspects repository parquet files via Hub metadata before loading rows.
-- It defaults to streaming and samples only small subsets for development.
-- If your environment has TLS interception issues, set `dataset.allow_insecure_ssl = true`.
-- For offline smoke/debug runs, you can set `dataset.local_sample_path` to a tiny JSONL sample file.
+- The code does **not** assume a language-specific config like `"mar"` - only
+  `default` is exposed, so per-language parquet files are selected directly.
+- Download-first access downloads only the selected language/split parquet file
+  (one-time; `validation/*.parquet` is ~440 MB) into `data/` (gitignored).
+  Subsequent runs reuse the flattened sample cache.
+- If your environment has TLS interception issues, set
+  `dataset.allow_insecure_ssl = true`.
+- For fully offline smoke/debug runs, set `dataset.local_sample_path` to a tiny
+  JSONL sample file.
