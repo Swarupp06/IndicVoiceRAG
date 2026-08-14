@@ -9,10 +9,13 @@ from pathlib import Path
 from typing import Any
 
 from .chunking import ChunkingConfig, build_chunker
-from .config import AppConfig, load_config
+from .config import AppConfig, LLMConfig, load_config
 from .dataset import DatasetInspector
 from .embedding import EmbeddingConfig, build_embedding_provider
 from .evaluation import evaluate_retrieval
+from .llm import build_llm_provider
+from .pipeline import build_harness, build_retrieval_engine
+from .rag_evaluate import build_sample_cases, evaluate_rag
 from .retrieval import RetrievalEngine
 from .vector_store import build_vector_store
 
@@ -47,6 +50,21 @@ def _build_parser() -> argparse.ArgumentParser:
     smoke = sub.add_parser("smoke-test", help="End-to-end real-data + real-embedding smoke test")
     smoke.add_argument("--query", default="What is the passage about?")
     smoke.add_argument("--size", type=int, default=32)
+
+    rag = sub.add_parser("rag", help="Run the full RAG pipeline (retrieval -> LLM -> guardrails)")
+    rag.add_argument("--query", required=True)
+    rag.add_argument("--size", type=int, default=None)
+    rag.add_argument("--top-k", type=int, default=None)
+    rag.add_argument("--debug", action="store_true", help="Include per-stage latency metrics")
+    rag.add_argument("--provider", default=None, help="Override llm.provider (mock|openai_compatible|gemini)")
+    rag.add_argument("--model", default=None, help="Override llm.model_name")
+    rag.add_argument("--load-index", action="store_true", help="Load persisted vector index instead of re-indexing")
+
+    rag_eval = sub.add_parser("rag-evaluate", help="RAG evaluation harness on real data")
+    rag_eval.add_argument("--size", type=int, default=None)
+    rag_eval.add_argument("--queries", type=int, default=20)
+    rag_eval.add_argument("--top-k", type=int, default=None)
+    rag_eval.add_argument("--debug", action="store_true")
     return parser
 
 
@@ -66,6 +84,15 @@ def _build_engine(config: AppConfig) -> RetrievalEngine:
 
 
 def _data_provenance(inspector: DatasetInspector) -> dict[str, Any]:
+    if inspector.config.local_sample_path:
+        return {
+            "source": "local_fixture",
+            "repo_id": inspector.config.repo_id,
+            "split": inspector.config.split,
+            "language": inspector.config.language,
+            "parquet_file": None,
+            "url": None,
+        }
     meta = inspector.sample_cache_meta()
     if meta:
         return {
@@ -231,6 +258,102 @@ def smoke_test(config: AppConfig, query: str, size: int) -> None:
     )
 
 
+def run_rag(
+    config: AppConfig,
+    query: str,
+    size: int | None,
+    top_k: int | None,
+    debug: bool,
+    provider: str | None,
+    model: str | None,
+    load_index: bool,
+) -> None:
+    if provider or model:
+        config.llm = LLMConfig(
+            provider=provider or config.llm.provider,
+            model_name=model or config.llm.model_name,
+            base_url=config.llm.base_url,
+            api_key_env=config.llm.api_key_env,
+            temperature=config.llm.temperature,
+            max_tokens=config.llm.max_tokens,
+            timeout_seconds=config.llm.timeout_seconds,
+            max_retries=config.llm.max_retries,
+        )
+
+    inspector = DatasetInspector(config.dataset)
+    engine = build_retrieval_engine(config)
+    if load_index:
+        engine.store.load()
+        documents = len(engine.store._chunks)  # noqa: SLF001 - internal count for report
+    else:
+        docs = inspector.normalized_sample(size)
+        engine.index_documents(docs)
+        documents = len(docs)
+
+    harness = build_harness(config, engine.query)
+    response = harness.answer(query=query, top_k=top_k, debug=debug)
+
+    _print_json(
+        {
+            "rag_response": response.as_dict(include_metrics=debug),
+            "pipeline": "TEXT QUERY -> VALIDATION -> RETRIEVAL -> CONTEXT -> LLM -> GROUNDING -> GUARDRAILS -> STRUCTURED RESPONSE",
+            "provenance": _data_provenance(inspector),
+            "embedder": engine.embedder.describe(),
+            "llm": harness.llm.describe(),
+            "documents_indexed": documents,
+            "top_k": top_k or config.retrieval.top_k,
+            "guardrails": {
+                "min_retrieval_score": config.guardrails.min_retrieval_score,
+                "grounding_threshold": config.guardrails.grounding_threshold,
+                "context_max_tokens": config.guardrails.context_max_tokens,
+            },
+        }
+    )
+
+
+def run_rag_evaluate(config: AppConfig, size: int | None, queries: int, top_k: int | None, debug: bool) -> None:
+    inspector = DatasetInspector(config.dataset)
+    docs = inspector.normalized_sample(size)
+    engine = build_retrieval_engine(config)
+    engine.index_documents(docs)
+
+    harness = build_harness(config, engine.query)
+
+    seen: set[str] = set()
+    real_queries: list[tuple[str, str | None]] = []
+    for doc in docs:
+        if doc.query_id is None or not doc.query_text:
+            continue
+        if doc.query_id in seen:
+            continue
+        seen.add(doc.query_id)
+        real_queries.append((doc.query_text, doc.query_id))
+        if len(real_queries) >= queries:
+            break
+
+    unanswerable = [
+        "बैंकॉक में कल का मौसम कैसा था?",
+        "What is the score of yesterday's cricket match?",
+        "क्या आज शेयर बाजार बंद होगा?",
+    ]
+    cases = build_sample_cases(real_queries, extra_unanswerable=unanswerable)
+    report = evaluate_rag(harness, cases, top_k=top_k, debug=debug)
+
+    _print_json(
+        {
+            "rag_evaluation": report.as_dict(),
+            "provenance": _data_provenance(inspector),
+            "embedder": engine.embedder.describe(),
+            "llm": harness.llm.describe(),
+            "note": (
+                "No human/LLM answer-quality label set exists yet; this measures "
+                "pipeline behavior (answered/refused/grounded + latency), not answer quality."
+            ),
+            "unanswerable_probes": unanswerable,
+        }
+    )
+
+
 def main() -> None:
     try:
         sys.stdout.reconfigure(encoding="utf-8")
@@ -255,6 +378,25 @@ def main() -> None:
         run_retrieval_evaluation(config, size=args.size, top_k=args.top_k)
     elif args.command == "smoke-test":
         smoke_test(config, query=args.query, size=args.size)
+    elif args.command == "rag":
+        run_rag(
+            config,
+            query=args.query,
+            size=args.size,
+            top_k=args.top_k,
+            debug=args.debug,
+            provider=args.provider,
+            model=args.model,
+            load_index=args.load_index,
+        )
+    elif args.command == "rag-evaluate":
+        run_rag_evaluate(
+            config,
+            size=args.size,
+            queries=args.queries,
+            top_k=args.top_k,
+            debug=args.debug,
+        )
     else:
         raise ValueError(f"Unsupported command: {args.command}")
 

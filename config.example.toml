@@ -32,3 +32,28 @@ metadata_path = "indexes/dev.metadata.jsonl"
 
 [retrieval]
 top_k = 5
+
+# --- Phase 2: LLM provider ---
+# provider: mock (deterministic, offline, no credentials)
+#           openai_compatible (OpenAI / Ollama / vLLM / LM Studio / Together / Groq)
+#           gemini (Google Generative Language API)
+[llm]
+provider = "mock"
+model_name = "mock-rag-generator"   # e.g. gpt-4o-mini / gemini-2.0-flash / qwen2.5:7b
+base_url = ""                       # openai_compatible endpoint, e.g. http://localhost:11434/v1
+api_key_env = ""                    # env var holding the API key (e.g. OPENAI_API_KEY, GEMINI_API_KEY)
+temperature = 0.0
+max_tokens = 512
+timeout_seconds = 30.0
+max_retries = 1
+
+# --- Phase 2: guardrails / context limits ---
+[guardrails]
+min_retrieval_score = 0.35    # below this, retrieval evidence is too weak to answer
+min_hits = 1
+max_query_chars = 1000
+grounding_threshold = 0.35    # lexical grounding per-claim overlap threshold
+context_max_tokens = 1500     # total context budget passed to the LLM
+max_context_docs = 8          # max sources in the context
+strict_retry_on_ungrounded = true
+max_ungrounded_retries = 1
