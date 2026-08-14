@@ -1,0 +1,33 @@
+[dataset]
+repo_id = "ai4bharat/MSMARCO-XI"
+split = "train"
+config_name = "default"
+streaming = true
+sample_size = 64
+language = "hin"
+revision = "main"
+allow_insecure_ssl = false
+local_sample_path = "" # optional JSONL fallback
+cache_dir = ".cache/hf"
+max_retries = 3
+
+[chunking]
+strategy = "fixed" # fixed | sentence_aware | semantic
+chunk_size = 120
+overlap = 20
+semantic_threshold = 0.35
+sentence_separator_regex = "(?<=[.!?])\\s+"
+
+[embedding]
+provider = "hash" # hash | sentence_transformers
+model_name = "hash-256"
+dimension = 256
+normalize = true
+
+[vector]
+provider = "faiss" # falls back to numpy if faiss unavailable
+index_path = "indexes/dev.index"
+metadata_path = "indexes/dev.metadata.jsonl"
+
+[retrieval]
+top_k = 5

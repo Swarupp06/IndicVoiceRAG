@@ -1,0 +1,24 @@
+[dataset]
+repo_id = "ai4bharat/MSMARCO-XI"
+split = "validation"
+language = "hin"
+sample_size = 4
+local_sample_path = "tests/fixtures/msmarco_xi_tiny_sample.jsonl"
+
+[chunking]
+strategy = "fixed"
+chunk_size = 20
+overlap = 5
+
+[embedding]
+provider = "hash"
+dimension = 128
+normalize = true
+
+[vector]
+provider = "numpy"
+index_path = "indexes/smoke.index"
+metadata_path = "indexes/smoke.metadata.jsonl"
+
+[retrieval]
+top_k = 3

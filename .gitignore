@@ -1,0 +1,44 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Packaging
+*.egg-info/
+build/
+dist/
+
+# Test and tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Hugging Face and dataset artifacts
+.cache/
+data/
+datasets/
+hf_datasets/
+
+# Vector indexes and generated artifacts
+indexes/
+artifacts/
+*.faiss
+*.npy
+*.npz
+*.pkl
+
+# Secrets and environment files
+.env
+.env.*
+*.key
+*.pem
+secrets/
+
+# OS/editor temp files
+*.tmp
+*.log
+.DS_Store
+Thumbs.db

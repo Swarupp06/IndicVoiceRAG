@@ -1,0 +1,4 @@
+{"query_id":"q1","query_text":"goa beaches","query_type":"factoid","passage_text":"Goa is known for beaches, tourism, and a coastal economy.","language":"en","source_language":"en","target_language":"en","relevance":1,"doc_id":"d1"}
+{"query_id":"q2","query_text":"capital of goa","query_type":"factoid","passage_text":"Panaji is the capital city of Goa.","language":"en","source_language":"en","target_language":"en","relevance":1,"doc_id":"d2"}
+{"query_id":"q3","query_text":"winter tourism","query_type":"descriptive","passage_text":"Many visitors come to Goa during winter festivals and holidays.","language":"en","source_language":"en","target_language":"en","relevance":1,"doc_id":"d3"}
+{"query_id":"q4","query_text":"india capital","query_type":"factoid","passage_text":"New Delhi is the capital of India.","language":"en","source_language":"en","target_language":"en","relevance":1,"doc_id":"d4"}
