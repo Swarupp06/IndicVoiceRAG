@@ -206,7 +206,17 @@ def test_structured_response_schema() -> None:
     harness = _harness(lambda q, k: [_hit("d1", 0.92, _CONTEXT_PASSAGE)])
     response = harness.answer("What is the capital of India?", debug=True)
     payload = response.as_dict(include_metrics=True)
-    assert set(payload) == {"query", "answer", "grounded", "confidence", "sources", "reason", "guardrail", "metrics_ms"}
+    assert set(payload) == {
+        "query",
+        "answer",
+        "grounded",
+        "confidence",
+        "sources",
+        "reason",
+        "guardrail",
+        "llm",
+        "metrics_ms",
+    }
     assert set(response.as_dict(include_metrics=False)) == {
         "query",
         "answer",
@@ -215,7 +225,9 @@ def test_structured_response_schema() -> None:
         "sources",
         "reason",
         "guardrail",
+        "llm",
     }
+    assert set(payload["llm"]) >= {"provider", "model"}
     source = payload["sources"][0]
     assert set(source) == {
         "document_id",

@@ -33,19 +33,29 @@ metadata_path = "indexes/dev.metadata.jsonl"
 [retrieval]
 top_k = 5
 
-# --- Phase 2: LLM provider ---
-# provider: mock (deterministic, offline, no credentials)
-#           openai_compatible (OpenAI / Ollama / vLLM / LM Studio / Together / Groq)
-#           gemini (Google Generative Language API)
+# --- Phase 2.5: LLM provider (must stay at Rs 0) ---
+# provider:
+#   ollama            local inference, no API key, no cloud cost   (verified Rs 0)
+#   gemini            Google Generative Language API, GEMINI_API_KEY     (free tier)
+#   groq              GroqCloud OpenAI-compatible, GROQ_API_KEY          (free plan)
+#   openrouter        OpenRouter, OPENROUTER_API_KEY, ":free" models only
+#   openai_compatible generic endpoint - NOT ELIGIBLE for the Rs 0 project
+#   mock              deterministic offline stub - TESTS ONLY
+# API keys are never stored here, only the NAME of the env var that holds them.
 [llm]
-provider = "mock"
-model_name = "mock-rag-generator"   # e.g. gpt-4o-mini / gemini-2.0-flash / qwen2.5:7b
-base_url = ""                       # openai_compatible endpoint, e.g. http://localhost:11434/v1
-api_key_env = ""                    # env var holding the API key (e.g. OPENAI_API_KEY, GEMINI_API_KEY)
+provider = "ollama"
+model_name = "qwen2.5:1.5b-instruct"  # gemini-2.5-flash-lite / llama-3.1-8b-instant / google/gemma-4-31b-it:free
+base_url = ""                         # endpoint override (ollama: http://localhost:11434)
+api_key_env = ""                      # env var NAME only, e.g. GEMINI_API_KEY / GROQ_API_KEY / OPENROUTER_API_KEY
 temperature = 0.0
 max_tokens = 512
 timeout_seconds = 30.0
 max_retries = 1
+# Ordered fallback chain: free cloud provider -> local ollama -> (mock, tests only).
+fallback_providers = ["ollama"]
+fallback_models = { ollama = "qwen2.5:1.5b-instruct" }
+# Keep false outside tests: a demo must fail loudly rather than fake an answer.
+allow_mock_fallback = false
 
 # --- Phase 2: guardrails / context limits ---
 [guardrails]

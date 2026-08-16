@@ -1,20 +1,28 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict
+from dataclasses import asdict, replace
 import json
 import sys
 import time
 from pathlib import Path
 from typing import Any
 
+from .benchmark import (
+    benchmark_report,
+    load_benchmark_queries,
+    records_as_dicts,
+    run_benchmark,
+    summarize,
+)
 from .chunking import ChunkingConfig, build_chunker
-from .config import AppConfig, LLMConfig, load_config
+from .config import AppConfig, load_config
+from .cost import PROVIDER_COSTS
 from .dataset import DatasetInspector
-from .embedding import EmbeddingConfig, build_embedding_provider
+from .embedding import build_embedding_provider
 from .evaluation import evaluate_retrieval
-from .llm import build_llm_provider
-from .pipeline import build_harness, build_retrieval_engine
+from .llm import build_llm_provider, normalize_provider_name
+from .pipeline import build_harness, build_llm_from_config, build_retrieval_engine
 from .rag_evaluate import build_sample_cases, evaluate_rag
 from .retrieval import RetrievalEngine
 from .vector_store import build_vector_store
@@ -56,7 +64,11 @@ def _build_parser() -> argparse.ArgumentParser:
     rag.add_argument("--size", type=int, default=None)
     rag.add_argument("--top-k", type=int, default=None)
     rag.add_argument("--debug", action="store_true", help="Include per-stage latency metrics")
-    rag.add_argument("--provider", default=None, help="Override llm.provider (mock|openai_compatible|gemini)")
+    rag.add_argument(
+        "--provider",
+        default=None,
+        help="Override llm.provider (ollama|gemini|groq|openrouter|openai_compatible|mock)",
+    )
     rag.add_argument("--model", default=None, help="Override llm.model_name")
     rag.add_argument("--load-index", action="store_true", help="Load persisted vector index instead of re-indexing")
 
@@ -65,6 +77,26 @@ def _build_parser() -> argparse.ArgumentParser:
     rag_eval.add_argument("--queries", type=int, default=20)
     rag_eval.add_argument("--top-k", type=int, default=None)
     rag_eval.add_argument("--debug", action="store_true")
+
+    providers = sub.add_parser("providers", help="List LLM providers, availability and verified cost status")
+    providers.add_argument("--json", action="store_true", help="Print raw JSON instead of a table")
+
+    bench = sub.add_parser(
+        "benchmark-providers",
+        help="Run the fixed benchmark query set through the full RAG pipeline per provider",
+    )
+    bench.add_argument(
+        "--providers",
+        default="ollama",
+        help="Comma-separated providers to benchmark (only ₹0-verified providers should be used)",
+    )
+    bench.add_argument("--models", default=None, help="Comma-separated provider=model overrides")
+    bench.add_argument("--queries-file", default=None, help="Benchmark query set (default benchmarks/queries.json)")
+    bench.add_argument("--size", type=int, default=None, help="Sample size when building the index")
+    bench.add_argument("--top-k", type=int, default=None)
+    bench.add_argument("--load-index", action="store_true", help="Load the persisted index instead of re-indexing")
+    bench.add_argument("--out", default=None, help="Write the full JSON report to this path")
+    bench.add_argument("--rows-out", default=None, help="Write per-query rows as CSV to this path")
     return parser
 
 
@@ -269,15 +301,17 @@ def run_rag(
     load_index: bool,
 ) -> None:
     if provider or model:
-        config.llm = LLMConfig(
+        config.llm = replace(
+            config.llm,
             provider=provider or config.llm.provider,
             model_name=model or config.llm.model_name,
-            base_url=config.llm.base_url,
-            api_key_env=config.llm.api_key_env,
-            temperature=config.llm.temperature,
-            max_tokens=config.llm.max_tokens,
-            timeout_seconds=config.llm.timeout_seconds,
-            max_retries=config.llm.max_retries,
+        )
+
+    if normalize_provider_name(config.llm.provider) == "mock":
+        print(
+            "WARNING: llm.provider='mock' is a deterministic test stub, not a real generator. "
+            "Use --provider ollama|gemini|groq|openrouter for a real answer.",
+            file=sys.stderr,
         )
 
     inspector = DatasetInspector(config.dataset)
@@ -354,6 +388,144 @@ def run_rag_evaluate(config: AppConfig, size: int | None, queries: int, top_k: i
     )
 
 
+def list_providers(config: AppConfig, as_json: bool) -> None:
+    rows: list[dict[str, Any]] = []
+    for name, cost in PROVIDER_COSTS.items():
+        try:
+            provider = build_llm_provider(name, model_name=None)
+            available = provider.available()
+            model = provider.model_name
+        except Exception as exc:  # noqa: BLE001 - reported, not raised
+            available = False
+            model = cost.model
+            rows.append({**cost.as_dict(), "available_now": available, "default_model": model, "error": str(exc)})
+            continue
+        rows.append({**cost.as_dict(), "available_now": available, "default_model": model})
+    if as_json:
+        _print_json({"configured_provider": config.llm.provider, "providers": rows})
+        return
+    header = f"{'provider':<18}{'default model':<32}{'available':<11}{'cost status'}"
+    print(header)
+    print("-" * len(header))
+    for row in rows:
+        print(
+            f"{row['provider']:<18}{row['default_model']:<32}"
+            f"{'yes' if row['available_now'] else 'no':<11}{row['status']}"
+        )
+    print(f"\nconfigured provider: {config.llm.provider}")
+
+
+def _parse_model_overrides(raw: str | None) -> dict[str, str]:
+    overrides: dict[str, str] = {}
+    for item in (raw or "").split(","):
+        item = item.strip()
+        if not item:
+            continue
+        if "=" not in item:
+            raise ValueError(f"--models expects provider=model pairs, got '{item}'")
+        provider, model = item.split("=", 1)
+        overrides[normalize_provider_name(provider)] = model.strip()
+    return overrides
+
+
+def _write_rows_csv(path: str, rows: list[dict[str, Any]]) -> None:
+    import csv
+
+    if not rows:
+        return
+    fields = [key for key in rows[0] if key != "usage"]
+    with open(path, "w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fields)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({key: row[key] for key in fields})
+
+
+def run_provider_benchmark(
+    config: AppConfig,
+    providers: str,
+    models: str | None,
+    queries_file: str | None,
+    size: int | None,
+    top_k: int | None,
+    load_index: bool,
+    out: str | None,
+    rows_out: str | None,
+) -> None:
+    queries = load_benchmark_queries(queries_file)
+    overrides = _parse_model_overrides(models)
+    requested = [normalize_provider_name(p) for p in providers.split(",") if p.strip()]
+
+    inspector = DatasetInspector(config.dataset)
+    engine = build_retrieval_engine(config)
+    if load_index:
+        engine.store.load()
+        documents = len(engine.store._chunks)  # noqa: SLF001 - internal count for report
+    else:
+        docs = inspector.normalized_sample(size)
+        engine.index_documents(docs)
+        documents = len(docs)
+
+    runs: dict[str, Any] = {}
+    all_rows: list[dict[str, Any]] = []
+    for name in requested:
+        cost = PROVIDER_COSTS.get(name)
+        if cost is None:
+            runs[name] = {"skipped": f"unknown provider '{name}'"}
+            continue
+        if not cost.eligible_zero_cost:
+            runs[name] = {"skipped": "provider is NOT ELIGIBLE for the ₹0 project", "cost": cost.as_dict()}
+            continue
+        model = overrides.get(name)
+        keeps_endpoint = name == normalize_provider_name(config.llm.provider)
+        provider_config = replace(
+            config.llm,
+            provider=name,
+            model_name=model or "",
+            base_url=config.llm.base_url if keeps_endpoint else None,
+            api_key_env=config.llm.api_key_env if keeps_endpoint else None,
+            fallback_providers=[],
+        )
+        llm = build_llm_from_config(replace(config, llm=provider_config))
+        if not llm.available():
+            runs[name] = {
+                "skipped": "provider not available (missing API key or unreachable endpoint)",
+                "cost": {**cost.as_dict(), "model": llm.model_name},
+                "model": llm.model_name,
+            }
+            continue
+        harness = build_harness(replace(config, llm=provider_config), engine.query)
+        records = run_benchmark(harness, queries, provider_label=name, model_label=llm.model_name)
+        rows = records_as_dicts(records)
+        all_rows.extend(rows)
+        runs[name] = {
+            "model": llm.model_name,
+            "cost": {**cost.as_dict(), "model": llm.model_name},
+            "summary": summarize(records),
+            "records": rows,
+        }
+
+    report = benchmark_report(
+        runs=runs,
+        query_count=len(queries),
+        dataset=_data_provenance(inspector),
+        embedder=engine.embedder.describe(),
+    )
+    report["documents_indexed"] = documents
+    report["top_k"] = top_k or config.retrieval.top_k
+    if out:
+        Path(out).parent.mkdir(parents=True, exist_ok=True)
+        Path(out).write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
+    if rows_out:
+        Path(rows_out).parent.mkdir(parents=True, exist_ok=True)
+        _write_rows_csv(rows_out, all_rows)
+
+    summary_only = {
+        name: {k: v for k, v in run.items() if k != "records"} for name, run in runs.items()
+    }
+    _print_json({**report, "runs": summary_only, "report_path": out, "rows_path": rows_out})
+
+
 def main() -> None:
     try:
         sys.stdout.reconfigure(encoding="utf-8")
@@ -396,6 +568,20 @@ def main() -> None:
             queries=args.queries,
             top_k=args.top_k,
             debug=args.debug,
+        )
+    elif args.command == "providers":
+        list_providers(config, as_json=args.json)
+    elif args.command == "benchmark-providers":
+        run_provider_benchmark(
+            config,
+            providers=args.providers,
+            models=args.models,
+            queries_file=args.queries_file,
+            size=args.size,
+            top_k=args.top_k,
+            load_index=args.load_index,
+            out=args.out,
+            rows_out=args.rows_out,
         )
     else:
         raise ValueError(f"Unsupported command: {args.command}")

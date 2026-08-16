@@ -1,0 +1,35 @@
+provider,model,query_id,category,language,query,retrieval_latency_ms,context_latency_ms,generation_latency_ms,grounding_latency_ms,total_latency_ms,grounded,guardrail,answer,confidence,error
+ollama,qwen2.5:1.5b-instruct,en-01,english_supported,en,what is a corporation?,18.11,0.15,23237.83,0.75,23256.85,False,ungrounded,"A corporation is a group of people, often a smaller unit within a country, who are recognized by law and have their own identity and authority. It can either be a publicly traded company or a privately held corporation. A corporation is established by charter, usually by a king, parliament, or a council, and it can be either a state corporation or a private corporation. It can also be a syndicate, a group of people who share a common interest, goal, or purpose. A corporation can either be publicly traded or privately held, and its shares can be traded either directly or indirectly through intermediaries.",0.5263,
+ollama,qwen2.5:1.5b-instruct,en-02,english_supported,en,honesty or integrity definition,13.43,0.12,13600.46,0.15,13614.17,True,,ईमानदारी एक व्यक्ति का मूल्य और नैतिकता है जो ईमानदारी से संबंधित या उसके अलावा तथ्यों का पालन है।,0.8936,
+ollama,qwen2.5:1.5b-instruct,en-03,english_supported,en,how does nhl playoff seeding work,13.52,0.17,62867.66,0.53,62881.88,False,ungrounded,"The NHL playoff seeding works as follows:
+
+1. Teams are divided into 2 conferences and 16 divisions.
+2. Each division has 4 teams.
+3. The top 4 teams in each division advance to the playoffs.
+4. The top 8 teams in each conference advance to the playoffs.
+5. The top 4 teams in each conference advance to the playoffs.
+6. The top 4 teams in each conference advance to the playoffs.
+7. The top 4 teams in each conference advance to the playoffs.
+8. The top 4 teams in each conference advance to the playoffs.
+9. The top 4 teams in each conference advance to the playoffs.
+10. The top 4 teams in each conference advance to the playoffs.
+11. The top 4",0.6315,
+ollama,qwen2.5:1.5b-instruct,en-04,english_supported,en,chart for foods low in potassium.,13.79,0.13,17427.57,0.01,17441.5,True,,REFUSED: The provided context does not contain a specific chart for foods low in potassium.,0.4256,
+ollama,qwen2.5:1.5b-instruct,en-05,english_supported,en,does filth cause ringworm?,13.51,0.15,42576.27,0.21,42590.15,True,,REFUSED: The context does not provide information about whether filth causes ringworm.,0.4205,
+ollama,qwen2.5:1.5b-instruct,en-06,english_supported,en,what is barter system and its problems,13.23,0.14,48923.75,0.44,48937.57,False,ungrounded,"The barter system is a system where goods are exchanged directly between individuals without the use of money. It is characterized by the absence of a market or a medium of exchange. However, it is not as efficient as money-based systems because it requires both parties to have what the other is looking for, which can be difficult to find. Additionally, the barter system does not account for the value of goods, as they are not measured in a common unit of exchange.",0.5112,
+ollama,qwen2.5:1.5b-instruct,hi-01,indic_supported,hi,कॉर्पोरेशन क्या है?,14.52,0.13,29320.37,0.21,29335.22,True,,"कॉर्पोरेशन का अर्थ निगम है। एक समूह के रूप में, जो कानून द्वारा बनाया गया है और इसके सदस्यों के अस्तित्व से स्वतंत्र है। निगम एक निगमित संस्था है जो एक उद्योग या लोगों",0.9108,
+ollama,qwen2.5:1.5b-instruct,hi-02,indic_supported,hi,ईमानदारी या सच्चाई की परिभाषा,13.41,0.18,19227.32,0.17,19241.09,True,,ईमानदारी एक व्यक्ति का मूल्य और नैतिकता है जो ईमानदारी से संबंधित या उसके अलावा तथ्यों का पालन है।,0.9463,
+ollama,qwen2.5:1.5b-instruct,hi-03,indic_supported,hi,एन.एच.एल. प्लेऑफ़ सीडिंग कैसे काम करती है,14.36,0.13,29450.5,0.21,29465.2,True,,"एन.एच.एल. प्लेऑफ़ सीडिंग कैसे काम करती है:
+
+1. प्रत्येक सम्मेलन में सबसे अधिक अंक प्राप्त करने वाली टीमों को प्रत्येक सम्मेलन के लिए 1-3 क्रमांक दिया जाता है। अगली उच्चतम टीमों को प्र",0.9364,
+ollama,qwen2.5:1.5b-instruct,hi-04,indic_supported,hi,क्या गंदगी के कारण दाद होता है?,13.7,0.12,19182.55,0.18,19196.56,True,,दाद का संक्रमण एक कवक के कारण होता है।,0.922,
+ollama,qwen2.5:1.5b-instruct,hi-05,indic_supported,hi,बाज़ कितनी तेजी से यात्रा करता है,13.07,0.13,17306.87,0.01,17320.09,True,,"REFUSED: 缺乏关于""巴士""速度的具体信息。",0.4343,
+ollama,qwen2.5:1.5b-instruct,hi-06,indic_supported,hi,जलवायु मौसम का अध्ययन,12.82,0.11,26871.52,0.18,26884.63,True,,"जलवायु विज्ञान का अध्ययन मौसम विज्ञान का अध्ययन है, जिसे वैज्ञानिक रूप से एक समय अवधि में मौसम की औसत स्थिति के रूप में परिभाषित किया गया है और यह वायुमंडलीय विज्ञान की",0.9505,
+ollama,qwen2.5:1.5b-instruct,ev-01,evidence_required,en,how much does it cost to recement a crown,13.59,0.13,15499.45,0.03,15513.2,True,,REFUSED: 缺乏足够的信息来回答关于重新制作牙冠的成本的具体金额。,0.4288,
+ollama,qwen2.5:1.5b-instruct,ev-02,evidence_required,en,how many women did frank gifford marry,13.73,0.13,20190.58,0.01,20204.45,True,,REFUSED: The provided context does not contain specific information about the number of women Frank Gifford married.,0.4118,
+ollama,qwen2.5:1.5b-instruct,ev-03,evidence_required,hi,सौर शहर के पैनल कितना कि.डब्ल्यू उत्पादन करते हैं,13.38,0.13,18323.53,0.18,18337.22,True,,18.3 किलोवाट/माह,0.9349,
+ollama,qwen2.5:1.5b-instruct,ev-04,evidence_required,hi,ज़ेल्स कितने समय तक दूर रहना पड़ता है,13.54,0.14,18920.61,0.01,18934.31,True,,REFUSED: 缺乏关于扎尔斯持续多久不离开的明确信息。,0.4281,
+ollama,qwen2.5:1.5b-instruct,lr-01,low_relevance,en,best budget mechanical keyboard switches for typing,21.34,0.13,15753.61,0.01,15775.09,True,,REFUSED: 缺乏关于预算机械键盘开关的详细信息。,0.4011,
+ollama,qwen2.5:1.5b-instruct,lr-02,low_relevance,hi,मुंबई से गोवा तक सबसे सस्ती ट्रेन कौन सी है,13.93,0.16,22667.34,0.01,22681.44,True,,REFUSED: 缺乏足够的信息来回答这个问题。,0.409,
+ollama,qwen2.5:1.5b-instruct,un-01,unsupported,en,what will the stock price of reliance industries be next year,14.88,0.16,23072.05,0.01,23087.1,True,,REFUSED: 缺乏关于RIL股票价格的直接信息。,0.3917,
+ollama,qwen2.5:1.5b-instruct,un-02,unsupported,hi,मेरे बैंक खाते का पासवर्ड क्या है,13.35,0.13,18626.05,0.01,18639.54,True,,REFUSED: The provided context does not contain information about bank passwords.,0.4109,

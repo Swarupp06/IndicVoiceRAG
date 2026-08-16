@@ -1,0 +1,605 @@
+{
+  "benchmark": "indicvoicerag-phase2.5-llm-providers",
+  "query_count": 20,
+  "dataset": {
+    "source": "huggingface_hub_live_fetch",
+    "repo_id": "ai4bharat/MSMARCO-XI",
+    "split": "validation",
+    "language": "hin",
+    "parquet_file": "validation/hinval.parquet",
+    "url": "https://huggingface.co/datasets/ai4bharat/MSMARCO-XI/resolve/main/validation/hinval.parquet",
+    "cached_at": "2026-08-16T04:02:18+0000",
+    "record_count": 7992
+  },
+  "embedder": {
+    "provider": "sentence_transformers",
+    "model": "intfloat/multilingual-e5-small",
+    "dimension": 384,
+    "runtime": "pytorch-cpu",
+    "prefix_style": "e5"
+  },
+  "runs": {
+    "ollama": {
+      "model": "qwen2.5:1.5b-instruct",
+      "cost": {
+        "provider": "ollama",
+        "model": "qwen2.5:1.5b-instruct",
+        "free": true,
+        "billing_required": false,
+        "api_key_required": false,
+        "card_required": false,
+        "free_limit": "unlimited (local CPU/GPU inference, only local compute)",
+        "api_cost_during_benchmark": "₹0",
+        "eligible_zero_cost": true,
+        "account_verified": true,
+        "status": "FREE (VERIFIED ₹0)",
+        "source": "https://ollama.com/ (local runtime, no account)",
+        "notes": "Runs on this machine, no network call leaves the host, so the ₹0 path is fully verified.",
+        "checked_on": "2026-08-16"
+      },
+      "summary": {
+        "queries": 20,
+        "errors": 0,
+        "latency_ms": {
+          "retrieval": {
+            "p50": 13.54,
+            "p70": 13.79,
+            "p100": 21.34,
+            "avg": 14.26,
+            "n": 20
+          },
+          "context": {
+            "p50": 0.13,
+            "p70": 0.14,
+            "p100": 0.18,
+            "avg": 0.14,
+            "n": 20
+          },
+          "generation": {
+            "p50": 19227.32,
+            "p70": 23237.83,
+            "p100": 62867.66,
+            "avg": 25152.29,
+            "n": 20
+          },
+          "grounding": {
+            "p50": 0.15,
+            "p70": 0.18,
+            "p100": 0.75,
+            "avg": 0.17,
+            "n": 20
+          },
+          "total": {
+            "p50": 19241.09,
+            "p70": 23256.85,
+            "p100": 62881.88,
+            "avg": 25166.86,
+            "n": 20
+          }
+        },
+        "avg_generation_ms": 25152.29,
+        "guardrails": {
+          "ungrounded": 3,
+          "answered": 17
+        },
+        "by_category": {
+          "english_supported": {
+            "total": 6,
+            "answered": 6,
+            "refused": 0,
+            "grounded": 3
+          },
+          "indic_supported": {
+            "total": 6,
+            "answered": 6,
+            "refused": 0,
+            "grounded": 6
+          },
+          "evidence_required": {
+            "total": 4,
+            "answered": 4,
+            "refused": 0,
+            "grounded": 4
+          },
+          "low_relevance": {
+            "total": 2,
+            "answered": 2,
+            "refused": 0,
+            "grounded": 2
+          },
+          "unsupported": {
+            "total": 2,
+            "answered": 2,
+            "refused": 0,
+            "grounded": 2
+          }
+        },
+        "sub_200ms_total": false
+      },
+      "records": [
+        {
+          "provider": "ollama",
+          "model": "qwen2.5:1.5b-instruct",
+          "query_id": "en-01",
+          "category": "english_supported",
+          "language": "en",
+          "query": "what is a corporation?",
+          "retrieval_latency_ms": 18.11,
+          "context_latency_ms": 0.15,
+          "generation_latency_ms": 23237.83,
+          "grounding_latency_ms": 0.75,
+          "total_latency_ms": 23256.85,
+          "grounded": false,
+          "guardrail": "ungrounded",
+          "answer": "A corporation is a group of people, often a smaller unit within a country, who are recognized by law and have their own identity and authority. It can either be a publicly traded company or a privately held corporation. A corporation is established by charter, usually by a king, parliament, or a council, and it can be either a state corporation or a private corporation. It can also be a syndicate, a group of people who share a common interest, goal, or purpose. A corporation can either be publicly traded or privately held, and its shares can be traded either directly or indirectly through intermediaries.",
+          "confidence": 0.5263,
+          "error": null,
+          "usage": {
+            "prompt_tokens": 1865,
+            "completion_tokens": 147,
+            "total_tokens": 2012,
+            "eval_duration_ms": 12341.6
+          }
+        },
+        {
+          "provider": "ollama",
+          "model": "qwen2.5:1.5b-instruct",
+          "query_id": "en-02",
+          "category": "english_supported",
+          "language": "en",
+          "query": "honesty or integrity definition",
+          "retrieval_latency_ms": 13.43,
+          "context_latency_ms": 0.12,
+          "generation_latency_ms": 13600.46,
+          "grounding_latency_ms": 0.15,
+          "total_latency_ms": 13614.17,
+          "grounded": true,
+          "guardrail": null,
+          "answer": "ईमानदारी एक व्यक्ति का मूल्य और नैतिकता है जो ईमानदारी से संबंधित या उसके अलावा तथ्यों का पालन है।",
+          "confidence": 0.8936,
+          "error": null,
+          "usage": {
+            "prompt_tokens": 1190,
+            "completion_tokens": 95,
+            "total_tokens": 1285,
+            "eval_duration_ms": 7485.41
+          }
+        },
+        {
+          "provider": "ollama",
+          "model": "qwen2.5:1.5b-instruct",
+          "query_id": "en-03",
+          "category": "english_supported",
+          "language": "en",
+          "query": "how does nhl playoff seeding work",
+          "retrieval_latency_ms": 13.52,
+          "context_latency_ms": 0.17,
+          "generation_latency_ms": 62867.66,
+          "grounding_latency_ms": 0.53,
+          "total_latency_ms": 62881.88,
+          "grounded": false,
+          "guardrail": "ungrounded",
+          "answer": "The NHL playoff seeding works as follows:\n\n1. Teams are divided into 2 conferences and 16 divisions.\n2. Each division has 4 teams.\n3. The top 4 teams in each division advance to the playoffs.\n4. The top 8 teams in each conference advance to the playoffs.\n5. The top 4 teams in each conference advance to the playoffs.\n6. The top 4 teams in each conference advance to the playoffs.\n7. The top 4 teams in each conference advance to the playoffs.\n8. The top 4 teams in each conference advance to the playoffs.\n9. The top 4 teams in each conference advance to the playoffs.\n10. The top 4 teams in each conference advance to the playoffs.\n11. The top 4",
+          "confidence": 0.6315,
+          "error": null,
+          "usage": {
+            "prompt_tokens": 1863,
+            "completion_tokens": 160,
+            "total_tokens": 2023,
+            "eval_duration_ms": 13171.93
+          }
+        },
+        {
+          "provider": "ollama",
+          "model": "qwen2.5:1.5b-instruct",
+          "query_id": "en-04",
+          "category": "english_supported",
+          "language": "en",
+          "query": "chart for foods low in potassium.",
+          "retrieval_latency_ms": 13.79,
+          "context_latency_ms": 0.13,
+          "generation_latency_ms": 17427.57,
+          "grounding_latency_ms": 0.01,
+          "total_latency_ms": 17441.5,
+          "grounded": true,
+          "guardrail": null,
+          "answer": "REFUSED: The provided context does not contain a specific chart for foods low in potassium.",
+          "confidence": 0.4256,
+          "error": null,
+          "usage": {
+            "prompt_tokens": 1655,
+            "completion_tokens": 19,
+            "total_tokens": 1674,
+            "eval_duration_ms": 1483.98
+          }
+        },
+        {
+          "provider": "ollama",
+          "model": "qwen2.5:1.5b-instruct",
+          "query_id": "en-05",
+          "category": "english_supported",
+          "language": "en",
+          "query": "does filth cause ringworm?",
+          "retrieval_latency_ms": 13.51,
+          "context_latency_ms": 0.15,
+          "generation_latency_ms": 42576.27,
+          "grounding_latency_ms": 0.21,
+          "total_latency_ms": 42590.15,
+          "grounded": true,
+          "guardrail": null,
+          "answer": "REFUSED: The context does not provide information about whether filth causes ringworm.",
+          "confidence": 0.4205,
+          "error": null,
+          "usage": {
+            "prompt_tokens": 1813,
+            "completion_tokens": 18,
+            "total_tokens": 1831,
+            "eval_duration_ms": 1400.43
+          }
+        },
+        {
+          "provider": "ollama",
+          "model": "qwen2.5:1.5b-instruct",
+          "query_id": "en-06",
+          "category": "english_supported",
+          "language": "en",
+          "query": "what is barter system and its problems",
+          "retrieval_latency_ms": 13.23,
+          "context_latency_ms": 0.14,
+          "generation_latency_ms": 48923.75,
+          "grounding_latency_ms": 0.44,
+          "total_latency_ms": 48937.57,
+          "grounded": false,
+          "guardrail": "ungrounded",
+          "answer": "The barter system is a system where goods are exchanged directly between individuals without the use of money. It is characterized by the absence of a market or a medium of exchange. However, it is not as efficient as money-based systems because it requires both parties to have what the other is looking for, which can be difficult to find. Additionally, the barter system does not account for the value of goods, as they are not measured in a common unit of exchange.",
+          "confidence": 0.5112,
+          "error": null,
+          "usage": {
+            "prompt_tokens": 1686,
+            "completion_tokens": 112,
+            "total_tokens": 1798,
+            "eval_duration_ms": 9029.9
+          }
+        },
+        {
+          "provider": "ollama",
+          "model": "qwen2.5:1.5b-instruct",
+          "query_id": "hi-01",
+          "category": "indic_supported",
+          "language": "hi",
+          "query": "कॉर्पोरेशन क्या है?",
+          "retrieval_latency_ms": 14.52,
+          "context_latency_ms": 0.13,
+          "generation_latency_ms": 29320.37,
+          "grounding_latency_ms": 0.21,
+          "total_latency_ms": 29335.22,
+          "grounded": true,
+          "guardrail": null,
+          "answer": "कॉर्पोरेशन का अर्थ निगम है। एक समूह के रूप में, जो कानून द्वारा बनाया गया है और इसके सदस्यों के अस्तित्व से स्वतंत्र है। निगम एक निगमित संस्था है जो एक उद्योग या लोगों",
+          "confidence": 0.9108,
+          "error": null,
+          "usage": {
+            "prompt_tokens": 1676,
+            "completion_tokens": 160,
+            "total_tokens": 1836,
+            "eval_duration_ms": 13025.21
+          }
+        },
+        {
+          "provider": "ollama",
+          "model": "qwen2.5:1.5b-instruct",
+          "query_id": "hi-02",
+          "category": "indic_supported",
+          "language": "hi",
+          "query": "ईमानदारी या सच्चाई की परिभाषा",
+          "retrieval_latency_ms": 13.41,
+          "context_latency_ms": 0.18,
+          "generation_latency_ms": 19227.32,
+          "grounding_latency_ms": 0.17,
+          "total_latency_ms": 19241.09,
+          "grounded": true,
+          "guardrail": null,
+          "answer": "ईमानदारी एक व्यक्ति का मूल्य और नैतिकता है जो ईमानदारी से संबंधित या उसके अलावा तथ्यों का पालन है।",
+          "confidence": 0.9463,
+          "error": null,
+          "usage": {
+            "prompt_tokens": 1277,
+            "completion_tokens": 95,
+            "total_tokens": 1372,
+            "eval_duration_ms": 7558.24
+          }
+        },
+        {
+          "provider": "ollama",
+          "model": "qwen2.5:1.5b-instruct",
+          "query_id": "hi-03",
+          "category": "indic_supported",
+          "language": "hi",
+          "query": "एन.एच.एल. प्लेऑफ़ सीडिंग कैसे काम करती है",
+          "retrieval_latency_ms": 14.36,
+          "context_latency_ms": 0.13,
+          "generation_latency_ms": 29450.5,
+          "grounding_latency_ms": 0.21,
+          "total_latency_ms": 29465.2,
+          "grounded": true,
+          "guardrail": null,
+          "answer": "एन.एच.एल. प्लेऑफ़ सीडिंग कैसे काम करती है:\n\n1. प्रत्येक सम्मेलन में सबसे अधिक अंक प्राप्त करने वाली टीमों को प्रत्येक सम्मेलन के लिए 1-3 क्रमांक दिया जाता है। अगली उच्चतम टीमों को प्र",
+          "confidence": 0.9364,
+          "error": null,
+          "usage": {
+            "prompt_tokens": 1700,
+            "completion_tokens": 160,
+            "total_tokens": 1860,
+            "eval_duration_ms": 13010.71
+          }
+        },
+        {
+          "provider": "ollama",
+          "model": "qwen2.5:1.5b-instruct",
+          "query_id": "hi-04",
+          "category": "indic_supported",
+          "language": "hi",
+          "query": "क्या गंदगी के कारण दाद होता है?",
+          "retrieval_latency_ms": 13.7,
+          "context_latency_ms": 0.12,
+          "generation_latency_ms": 19182.55,
+          "grounding_latency_ms": 0.18,
+          "total_latency_ms": 19196.56,
+          "grounded": true,
+          "guardrail": null,
+          "answer": "दाद का संक्रमण एक कवक के कारण होता है।",
+          "confidence": 0.922,
+          "error": null,
+          "usage": {
+            "prompt_tokens": 1699,
+            "completion_tokens": 32,
+            "total_tokens": 1731,
+            "eval_duration_ms": 2535.81
+          }
+        },
+        {
+          "provider": "ollama",
+          "model": "qwen2.5:1.5b-instruct",
+          "query_id": "hi-05",
+          "category": "indic_supported",
+          "language": "hi",
+          "query": "बाज़ कितनी तेजी से यात्रा करता है",
+          "retrieval_latency_ms": 13.07,
+          "context_latency_ms": 0.13,
+          "generation_latency_ms": 17306.87,
+          "grounding_latency_ms": 0.01,
+          "total_latency_ms": 17320.09,
+          "grounded": true,
+          "guardrail": null,
+          "answer": "REFUSED: 缺乏关于\"巴士\"速度的具体信息。",
+          "confidence": 0.4343,
+          "error": null,
+          "usage": {
+            "prompt_tokens": 1674,
+            "completion_tokens": 15,
+            "total_tokens": 1689,
+            "eval_duration_ms": 1140.75
+          }
+        },
+        {
+          "provider": "ollama",
+          "model": "qwen2.5:1.5b-instruct",
+          "query_id": "hi-06",
+          "category": "indic_supported",
+          "language": "hi",
+          "query": "जलवायु मौसम का अध्ययन",
+          "retrieval_latency_ms": 12.82,
+          "context_latency_ms": 0.11,
+          "generation_latency_ms": 26871.52,
+          "grounding_latency_ms": 0.18,
+          "total_latency_ms": 26884.63,
+          "grounded": true,
+          "guardrail": null,
+          "answer": "जलवायु विज्ञान का अध्ययन मौसम विज्ञान का अध्ययन है, जिसे वैज्ञानिक रूप से एक समय अवधि में मौसम की औसत स्थिति के रूप में परिभाषित किया गया है और यह वायुमंडलीय विज्ञान की",
+          "confidence": 0.9505,
+          "error": null,
+          "usage": {
+            "prompt_tokens": 1464,
+            "completion_tokens": 160,
+            "total_tokens": 1624,
+            "eval_duration_ms": 13011.5
+          }
+        },
+        {
+          "provider": "ollama",
+          "model": "qwen2.5:1.5b-instruct",
+          "query_id": "ev-01",
+          "category": "evidence_required",
+          "language": "en",
+          "query": "how much does it cost to recement a crown",
+          "retrieval_latency_ms": 13.59,
+          "context_latency_ms": 0.13,
+          "generation_latency_ms": 15499.45,
+          "grounding_latency_ms": 0.03,
+          "total_latency_ms": 15513.2,
+          "grounded": true,
+          "guardrail": null,
+          "answer": "REFUSED: 缺乏足够的信息来回答关于重新制作牙冠的成本的具体金额。",
+          "confidence": 0.4288,
+          "error": null,
+          "usage": {
+            "prompt_tokens": 1468,
+            "completion_tokens": 20,
+            "total_tokens": 1488,
+            "eval_duration_ms": 1562.52
+          }
+        },
+        {
+          "provider": "ollama",
+          "model": "qwen2.5:1.5b-instruct",
+          "query_id": "ev-02",
+          "category": "evidence_required",
+          "language": "en",
+          "query": "how many women did frank gifford marry",
+          "retrieval_latency_ms": 13.73,
+          "context_latency_ms": 0.13,
+          "generation_latency_ms": 20190.58,
+          "grounding_latency_ms": 0.01,
+          "total_latency_ms": 20204.45,
+          "grounded": true,
+          "guardrail": null,
+          "answer": "REFUSED: The provided context does not contain specific information about the number of women Frank Gifford married.",
+          "confidence": 0.4118,
+          "error": null,
+          "usage": {
+            "prompt_tokens": 1857,
+            "completion_tokens": 23,
+            "total_tokens": 1880,
+            "eval_duration_ms": 1830.16
+          }
+        },
+        {
+          "provider": "ollama",
+          "model": "qwen2.5:1.5b-instruct",
+          "query_id": "ev-03",
+          "category": "evidence_required",
+          "language": "hi",
+          "query": "सौर शहर के पैनल कितना कि.डब्ल्यू उत्पादन करते हैं",
+          "retrieval_latency_ms": 13.38,
+          "context_latency_ms": 0.13,
+          "generation_latency_ms": 18323.53,
+          "grounding_latency_ms": 0.18,
+          "total_latency_ms": 18337.22,
+          "grounded": true,
+          "guardrail": null,
+          "answer": "18.3 किलोवाट/माह",
+          "confidence": 0.9349,
+          "error": null,
+          "usage": {
+            "prompt_tokens": 1727,
+            "completion_tokens": 16,
+            "total_tokens": 1743,
+            "eval_duration_ms": 1227.14
+          }
+        },
+        {
+          "provider": "ollama",
+          "model": "qwen2.5:1.5b-instruct",
+          "query_id": "ev-04",
+          "category": "evidence_required",
+          "language": "hi",
+          "query": "ज़ेल्स कितने समय तक दूर रहना पड़ता है",
+          "retrieval_latency_ms": 13.54,
+          "context_latency_ms": 0.14,
+          "generation_latency_ms": 18920.61,
+          "grounding_latency_ms": 0.01,
+          "total_latency_ms": 18934.31,
+          "grounded": true,
+          "guardrail": null,
+          "answer": "REFUSED: 缺乏关于扎尔斯持续多久不离开的明确信息。",
+          "confidence": 0.4281,
+          "error": null,
+          "usage": {
+            "prompt_tokens": 1684,
+            "completion_tokens": 18,
+            "total_tokens": 1702,
+            "eval_duration_ms": 1399.7
+          }
+        },
+        {
+          "provider": "ollama",
+          "model": "qwen2.5:1.5b-instruct",
+          "query_id": "lr-01",
+          "category": "low_relevance",
+          "language": "en",
+          "query": "best budget mechanical keyboard switches for typing",
+          "retrieval_latency_ms": 21.34,
+          "context_latency_ms": 0.13,
+          "generation_latency_ms": 15753.61,
+          "grounding_latency_ms": 0.01,
+          "total_latency_ms": 15775.09,
+          "grounded": true,
+          "guardrail": null,
+          "answer": "REFUSED: 缺乏关于预算机械键盘开关的详细信息。",
+          "confidence": 0.4011,
+          "error": null,
+          "usage": {
+            "prompt_tokens": 1524,
+            "completion_tokens": 16,
+            "total_tokens": 1540,
+            "eval_duration_ms": 1221.99
+          }
+        },
+        {
+          "provider": "ollama",
+          "model": "qwen2.5:1.5b-instruct",
+          "query_id": "lr-02",
+          "category": "low_relevance",
+          "language": "hi",
+          "query": "मुंबई से गोवा तक सबसे सस्ती ट्रेन कौन सी है",
+          "retrieval_latency_ms": 13.93,
+          "context_latency_ms": 0.16,
+          "generation_latency_ms": 22667.34,
+          "grounding_latency_ms": 0.01,
+          "total_latency_ms": 22681.44,
+          "grounded": true,
+          "guardrail": null,
+          "answer": "REFUSED: 缺乏足够的信息来回答这个问题。",
+          "confidence": 0.409,
+          "error": null,
+          "usage": {
+            "prompt_tokens": 2119,
+            "completion_tokens": 13,
+            "total_tokens": 2132,
+            "eval_duration_ms": 1020.95
+          }
+        },
+        {
+          "provider": "ollama",
+          "model": "qwen2.5:1.5b-instruct",
+          "query_id": "un-01",
+          "category": "unsupported",
+          "language": "en",
+          "query": "what will the stock price of reliance industries be next year",
+          "retrieval_latency_ms": 14.88,
+          "context_latency_ms": 0.16,
+          "generation_latency_ms": 23072.05,
+          "grounding_latency_ms": 0.01,
+          "total_latency_ms": 23087.1,
+          "grounded": true,
+          "guardrail": null,
+          "answer": "REFUSED: 缺乏关于RIL股票价格的直接信息。",
+          "confidence": 0.3917,
+          "error": null,
+          "usage": {
+            "prompt_tokens": 2125,
+            "completion_tokens": 16,
+            "total_tokens": 2141,
+            "eval_duration_ms": 1281.19
+          }
+        },
+        {
+          "provider": "ollama",
+          "model": "qwen2.5:1.5b-instruct",
+          "query_id": "un-02",
+          "category": "unsupported",
+          "language": "hi",
+          "query": "मेरे बैंक खाते का पासवर्ड क्या है",
+          "retrieval_latency_ms": 13.35,
+          "context_latency_ms": 0.13,
+          "generation_latency_ms": 18626.05,
+          "grounding_latency_ms": 0.01,
+          "total_latency_ms": 18639.54,
+          "grounded": true,
+          "guardrail": null,
+          "answer": "REFUSED: The provided context does not contain information about bank passwords.",
+          "confidence": 0.4109,
+          "error": null,
+          "usage": {
+            "prompt_tokens": 1781,
+            "completion_tokens": 15,
+            "total_tokens": 1796,
+            "eval_duration_ms": 1178.99
+          }
+        }
+      ]
+    }
+  },
+  "documents_indexed": 856,
+  "top_k": 5
+}

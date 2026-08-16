@@ -59,9 +59,15 @@ Backend foundation for HH Goa 2026 Task 2:
 - Top-k similarity retrieval with chunk-level hits aggregated to documents.
 - Hit@K / Recall@K / MRR evaluated against the dataset's real `is_selected` labels.
 
+### Free LLM providers (Phase 2.5)
+- Replaceable providers behind one interface: `mock`, `ollama`, `gemini`, `groq`, `openrouter`, `openai_compatible`.
+- Verified ₹0 cost table, fixed 20-query benchmark with P50/P70/P100, and an
+  optional fallback chain that never silently falls back to mock.
+- See [Phase 2.5](#phase-25---free-llm-providers--benchmark).
+
 ### RAG generation (Phase 2)
 - Deterministic orchestration harness (no agent): validate -> safety -> retrieve -> quality check -> context -> generate -> validate output -> grounding -> structured response.
-- Provider-agnostic LLM abstraction (`mock` / `openai_compatible` / `gemini`).
+- Provider-agnostic LLM abstraction (see Phase 2.5 for the full provider set).
 - Context engineering (dedup, source boundaries, token budget, metadata preservation).
 - Guardrails: invalid/empty input, unsafe input, low retrieval relevance, off-topic/no-evidence, grounding rejection, generation failure fallback.
 - Lexical grounding validator (abstraction ready for embedding/NLI upgrade).
@@ -74,7 +80,7 @@ Backend foundation for HH Goa 2026 Task 2:
 - Sarvam/ElevenLabs STT integration
 - Frontend/live demo deployment
 - Authentication
-- Final latency optimization for sub-200ms target
+- Final latency optimization for the sub-200ms target (measured P50 is ~19 s on local CPU generation; see Phase 2.5)
 - Production-grade safety classifier (current safety gate is a small regex list)
 - A human/LLM answer-quality evaluation set
 
@@ -91,7 +97,9 @@ src/indicvoicerag/
   vector_store.py   # FAISS/NumPy store with persistence
   retrieval.py      # retrieval engine
   evaluation.py     # Hit@K / Recall@K / MRR on real relevance labels
-  llm.py            # LLM provider abstraction (mock / openai_compatible / gemini)
+  llm.py            # LLM provider abstraction (mock/ollama/gemini/groq/openrouter/openai_compatible + fallback chain)
+  cost.py           # verified ₹0 cost status per provider
+  benchmark.py      # fixed-query provider benchmark + P50/P70/P100 reporting
   context.py        # context engineering (dedup, boundaries, token budget)
   prompts.py        # system/user prompt builder with refusal instruction
   grounding.py      # grounding validator abstraction + lexical implementation
@@ -100,9 +108,13 @@ src/indicvoicerag/
   rag_types.py      # structured SourceInfo / RAGResponse schema
   rag_evaluate.py   # RAG evaluation harness
   pipeline.py       # wiring: config -> real retrieval engine -> harness
+benchmarks/
+  queries.json      # fixed 20-query provider benchmark set
+  results/          # benchmark JSON + CSV reports
 tests/
-  ...               # offline unit tests (Phase 1 + Phase 2)
+  ...               # offline unit tests (Phase 1 + Phase 2 + providers)
 config.example.toml # sample config
+config.ollama.toml  # local zero-cost real-LLM config
 ```
 
 ## Setup
@@ -216,25 +228,17 @@ tool calls, loops or autonomy.
 
 ## LLM provider abstraction
 
-`llm.py` exposes `LLMProvider.generate(messages, *, max_tokens, temperature, timeout)`.
-Providers:
+See [Phase 2.5](#phase-25---free-llm-providers--benchmark) for the full provider
+matrix, verified cost table and measured benchmark. In short, `llm.py` exposes
 
-| Provider | Runtime | Credentials | Use case |
-|---|---|---|---|
-| `mock` (default) | in-process, deterministic | none | offline tests, CI, credential-free smoke |
-| `openai_compatible` | HTTP `/chat/completions` | `api_key_env` (optional for local) | OpenAI, Ollama, vLLM, LM Studio, Together, Groq |
-| `gemini` | Google REST API | `GEMINI_API_KEY` | strong Indic-language support, free tier |
+```python
+LLMProvider.generate(messages, *, max_tokens, temperature, timeout) -> LLMResponse
+# LLMResponse: { text, provider, model, latency_ms, usage }
+```
 
-**Model selection rationale (prototype):**
-- `mock` is the default so tests and the smoke test need no API key.
-- For a real Indic-language prototype the practical candidates are
-  `gemini-2.0-flash` (excellent Hindi/Indic output, generous free tier, low
-  cost, fast) and `gpt-4o-mini` (high quality, cheap, ubiquitous). Both are
-  reachable through the abstractions above with a one-line config change.
-- A local option is an OpenAI-compatible endpoint (e.g. Ollama with a Qwen or
-  Gemma model) when offline/deployment cost matters.
-- No model is claimed "best" purely by popularity; the choice is config-driven
-  and can be swapped per environment. See `config.example.toml` `[llm]`.
+with `mock`, `ollama`, `gemini`, `groq`, `openrouter` and a generic
+`openai_compatible` escape hatch behind that one interface. No provider-specific
+code exists in `RAGHarness`; the provider is chosen entirely from `[llm]` config.
 
 ## Context engineering (`context.py`)
 
@@ -395,3 +399,176 @@ with an empty answer.
 - No human/LLM answer-quality evaluation set exists yet.
 - Total RAG latency is **not** claimed to be <200ms; it is instrumented for
   later optimization.
+
+---
+
+# Phase 2.5 - Free LLM providers & benchmark
+
+Goal: replace the mock generator with a **real, replaceable LLM** while the
+project stays at **₹0**. No paid API is used, and no provider is called "free"
+unless the ₹0 path was verified.
+
+## Provider matrix
+
+| Provider | Class | Default free model | Credentials | Status |
+|---|---|---|---|---|
+| `ollama` | `OllamaProvider` | `qwen2.5:1.5b-instruct` | none (local `http://localhost:11434`) | **DONE - benchmarked, verified ₹0** |
+| `gemini` | `GeminiProvider` | `gemini-2.5-flash-lite` | `GEMINI_API_KEY` | DONE (implemented + unit-tested) / NOT ACCOUNT-VERIFIED |
+| `groq` | `GroqProvider` | `llama-3.1-8b-instant` | `GROQ_API_KEY` | DONE (implemented + unit-tested) / NOT ACCOUNT-VERIFIED |
+| `openrouter` | `OpenRouterProvider` | `google/gemma-4-31b-it:free` | `OPENROUTER_API_KEY` | DONE (implemented + unit-tested) / NOT ACCOUNT-VERIFIED |
+| `openai_compatible` | `OpenAICompatibleProvider` | `gpt-4o-mini` | `OPENAI_API_KEY` | NOT ELIGIBLE (cost depends on the endpoint) |
+| `mock` | `MockLLMProvider` | `mock-rag-generator` | none | tests only, never a silent fallback |
+
+`python -m indicvoicerag.cli providers` prints this table live, including whether
+each provider is reachable right now.
+
+All API keys are read from **environment variables only** (never stored in
+config or code); `.env` / `.env.*` are gitignored.
+
+## Cost verification (Step 8)
+
+| Provider | Free? | Billing required? | Free limit | API cost during benchmark | Eligible for ₹0? |
+|---|---|---|---|---|---|
+| Ollama | YES | NO | unlimited (local inference, only local compute) | ₹0 | **YES (verified)** |
+| Gemini | YES (docs) | NO (AI Studio key, no billing account) | per-model RPM/RPD/TPM caps in the rate-limit docs | not run (no key) | YES, but **NOT VERIFIED** from an account |
+| Groq | YES (docs) | NO (free plan, no card) | 30 RPM / 14,400 RPD / 6,000 TPM / 500,000 TPD for `llama-3.1-8b-instant` | not run (no key) | YES, but **NOT VERIFIED** from an account |
+| OpenRouter | YES (docs) | NO (only `:free` model ids) | 20 req/min, 50 req/day without purchased credits | not run (no key) | YES, but **NOT VERIFIED** from an account |
+| OpenAI-compatible | NO | YES | none | not run | **NO - NOT ELIGIBLE** |
+
+Sources: <https://ai.google.dev/gemini-api/docs/rate-limits>,
+<https://ai.google.dev/pricing>, <https://console.groq.com/docs/rate-limits>,
+<https://openrouter.ai/docs/api-reference/limits>, <https://ollama.com/>.
+Checked 2026-08-16 and encoded in `cost.py`.
+
+No cloud API key was available in this session, so Gemini/Groq/OpenRouter were
+implemented and unit-tested against mocked HTTP but **not** benchmarked; they
+are reported as NOT VERIFIED rather than as measured free providers.
+`OpenRouterProvider` refuses any model id that does not end in `:free`, so it
+cannot silently start billing.
+
+## Fallback semantics (Step 10)
+
+```text
+configured provider -> fallback_providers[...] -> (mock only if allow_mock_fallback = true)
+```
+
+`allow_mock_fallback` defaults to **false**, so a demo can never silently answer
+with the deterministic stub. The `rag` command additionally prints a warning
+when the configured provider is `mock`.
+
+## Benchmark (Steps 6-7)
+
+Fixed 20-query set in `benchmarks/queries.json`, identical for every provider:
+6 English supported, 6 Hindi supported, 4 evidence-required, 2 low-relevance,
+2 unsupported. Every run uses the full real pipeline (real MSMARCO-XI Hindi
+validation sample -> `multilingual-e5-small` -> FAISS -> context -> LLM ->
+grounding -> guardrails) and records per-stage latency, grounding, guardrail and
+the raw answer to JSON + CSV.
+
+```powershell
+.venv\Scripts\python.exe -m indicvoicerag.cli --config config.ollama.toml benchmark-providers `
+  --providers ollama --load-index `
+  --out benchmarks/results/ollama.json --rows-out benchmarks/results/ollama.csv
+```
+
+Measured on this machine (2 vCPU, no GPU), 856 chunks indexed, top-k 5,
+`max_tokens = 160`:
+
+| Provider | Model | Cost | P50 total | P70 total | P100 total | avg generation | Indic | Selected |
+|---|---|---|---|---|---|---|---|---|
+| ollama | `qwen2.5:1.5b-instruct` | ₹0 verified | 19,241 ms | 23,257 ms | 62,882 ms | 25,152 ms | 6/6 Hindi answered and grounded | **YES** |
+| ollama | `gemma3:1b` | ₹0 verified | 16,253 ms | 17,521 ms | 23,299 ms | 15,926 ms | 4/6 Hindi grounded, echoes the query in English | no |
+| gemini | `gemini-2.5-flash-lite` | NOT VERIFIED | - | - | - | - | not benchmarked (no key) | no |
+| groq | `llama-3.1-8b-instant` | NOT VERIFIED | - | - | - | - | not benchmarked (no key) | no |
+| openrouter | `google/gemma-4-31b-it:free` | NOT VERIFIED | - | - | - | - | not benchmarked (no key) | no |
+
+Retrieval itself stays fast in both runs: P50 ≈ 13.5 ms, P100 ≈ 21.3 ms; context
+building ≈ 0.14 ms; grounding ≈ 0.2 ms. **Generation is >99% of total latency.**
+
+### Qualitative observations (no invented scores)
+
+`qwen2.5:1.5b-instruct` (20/20 answered, 0 errors, 17 grounded, 3 ungrounded):
+- Answers from the retrieved passages; Hindi queries produce fluent Hindi
+  answers grounded in the Hindi evidence (6/6).
+- Refuses unsupported and low-relevance questions with the `REFUSED:` prefix
+  (stock price, bank password, keyboard switches, train fares) - but sometimes
+  writes the refusal reason in Chinese, a small-model artifact.
+- The 3 ungrounded cases are English answers built from Hindi evidence: the
+  answer is faithful, but the **lexical** grounding validator cannot match
+  across languages (documented limitation, not a hallucination).
+- Structured output is always valid `RAGResponse` JSON with provider metadata.
+
+`gemma3:1b` is ~1.6x faster but clearly worse for RAG: 14/20 ungrounded, it
+frequently echoes the question instead of answering, and it did not refuse the
+bank-password query. Speed alone is not a good enough reason to select it.
+
+## Real end-to-end RAG run (Step 12)
+
+Real MSMARCO-XI -> real e5-small -> real FAISS -> real retrieved context -> real
+free LLM (Ollama, no mock) -> real grounding -> real guardrails:
+
+```powershell
+.venv\Scripts\python.exe -m indicvoicerag.cli --config config.ollama.toml rag `
+  --query "कॉर्पोरेशन क्या है?" --load-index --debug
+```
+
+```json
+{
+  "answer": "कॉर्पोरेशन केवल एक समूह के रूप में जाना जाता है, जो कानून द्वारा या कानून के अधिकार के तहत बनाया गया है और इसके सदस्यों के अस्तित्व से स्वतंत्र है। यह निगम है।",
+  "grounded": true,
+  "confidence": 0.8927,
+  "guardrail": null,
+  "llm": { "provider": "ollama", "model": "qwen2.5:1.5b-instruct", "latency_ms": 31608.26,
+           "usage": { "prompt_tokens": 1676, "completion_tokens": 152, "total_tokens": 1828 } },
+  "metrics_ms": { "retrieval": 16.1, "context": 0.1, "generation": 31608.3, "grounding": 0.5, "total": 31625.0 }
+}
+```
+
+## Latency target (Step 9)
+
+**<200 ms was NOT achieved.** Honest numbers for the fastest verified-₹0 setup:
+
+- Fastest provider measured: Ollama (`gemma3:1b` P50 16.3 s; selected
+  `qwen2.5:1.5b-instruct` P50 19.2 s / P70 23.3 s / P100 62.9 s).
+- Bottleneck: **local CPU token generation** - 99.9% of total latency. Retrieval
+  + context + grounding together are ≈ 14 ms, already inside the budget.
+- Possible optimizations: use a hosted free provider (Groq is the strongest
+  candidate: its LPU serving is normally sub-second, which would put the total
+  in the few-hundred-ms range), stream the answer so time-to-first-token is what
+  the user perceives, cut `max_tokens`, shrink the context (top-k 3 and a
+  smaller token budget cut prompt-processing time), run Ollama on a GPU, or
+  cache answers for repeated queries.
+
+## Configuration
+
+```toml
+[llm]
+provider = "ollama"                      # ollama | gemini | groq | openrouter | openai_compatible | mock
+model_name = "qwen2.5:1.5b-instruct"
+base_url = "http://localhost:11434"      # ollama / openai_compatible endpoint
+api_key_env = ""                         # override the default env var name; the value never lives in config
+temperature = 0.0
+max_tokens = 160
+timeout_seconds = 120.0
+max_retries = 1
+fallback_providers = []                  # e.g. ["ollama"] behind a cloud provider
+fallback_models = {}
+allow_mock_fallback = false               # keep false outside tests
+```
+
+Ready-to-use local config: `config.ollama.toml`. Cloud usage only needs the key
+in the environment:
+
+```powershell
+$env:GROQ_API_KEY = "..."      # or GEMINI_API_KEY / OPENROUTER_API_KEY
+.venv\Scripts\python.exe -m indicvoicerag.cli rag --query "..." --provider groq --load-index
+```
+
+## Selected provider
+
+**Ollama + `qwen2.5:1.5b-instruct`**, because it is the only candidate with a
+**verified** ₹0 path (no key, no account, no quota), it never fails on rate
+limits, it answers Hindi queries in Hindi from the retrieved evidence, it
+refuses unsupported questions, and it produces valid structured output. It is
+not the fastest possible option - if a free Groq/Gemini key is added, the same
+config switch makes it the primary provider and Ollama the offline fallback.

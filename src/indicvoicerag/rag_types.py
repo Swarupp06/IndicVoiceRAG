@@ -47,6 +47,7 @@ class RAGResponse:
     reason: str | None = None
     guardrail: str | None = None
     metrics: dict[str, float] | None = None
+    llm: dict[str, Any] | None = None
 
     def as_dict(self, include_metrics: bool = False) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -58,6 +59,8 @@ class RAGResponse:
             "reason": self.reason,
             "guardrail": self.guardrail,
         }
+        if self.llm is not None:
+            payload["llm"] = self.llm
         if include_metrics and self.metrics is not None:
             payload["metrics_ms"] = {k: round(v, 1) for k, v in self.metrics.items()}
         return payload

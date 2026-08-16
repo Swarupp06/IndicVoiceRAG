@@ -1,0 +1,153 @@
+{
+  "name": "phase2.5-llm-provider-benchmark",
+  "corpus": "ai4bharat/MSMARCO-XI validation (hin), sample_size=800",
+  "notes": "Same 20 queries are run against every provider. English/Hindi supported queries come from real MSMARCO-XI queries whose passages are in the indexed sample; unsupported and low-relevance queries are deliberately outside the sample.",
+  "queries": [
+    {
+      "id": "en-01",
+      "category": "english_supported",
+      "language": "en",
+      "query": "what is a corporation?",
+      "expected_answerable": true
+    },
+    {
+      "id": "en-02",
+      "category": "english_supported",
+      "language": "en",
+      "query": "honesty or integrity definition",
+      "expected_answerable": true
+    },
+    {
+      "id": "en-03",
+      "category": "english_supported",
+      "language": "en",
+      "query": "how does nhl playoff seeding work",
+      "expected_answerable": true
+    },
+    {
+      "id": "en-04",
+      "category": "english_supported",
+      "language": "en",
+      "query": "chart for foods low in potassium.",
+      "expected_answerable": true
+    },
+    {
+      "id": "en-05",
+      "category": "english_supported",
+      "language": "en",
+      "query": "does filth cause ringworm?",
+      "expected_answerable": true
+    },
+    {
+      "id": "en-06",
+      "category": "english_supported",
+      "language": "en",
+      "query": "what is barter system and its problems",
+      "expected_answerable": true
+    },
+    {
+      "id": "hi-01",
+      "category": "indic_supported",
+      "language": "hi",
+      "query": "कॉर्पोरेशन क्या है?",
+      "expected_answerable": true
+    },
+    {
+      "id": "hi-02",
+      "category": "indic_supported",
+      "language": "hi",
+      "query": "ईमानदारी या सच्चाई की परिभाषा",
+      "expected_answerable": true
+    },
+    {
+      "id": "hi-03",
+      "category": "indic_supported",
+      "language": "hi",
+      "query": "एन.एच.एल. प्लेऑफ़ सीडिंग कैसे काम करती है",
+      "expected_answerable": true
+    },
+    {
+      "id": "hi-04",
+      "category": "indic_supported",
+      "language": "hi",
+      "query": "क्या गंदगी के कारण दाद होता है?",
+      "expected_answerable": true
+    },
+    {
+      "id": "hi-05",
+      "category": "indic_supported",
+      "language": "hi",
+      "query": "बाज़ कितनी तेजी से यात्रा करता है",
+      "expected_answerable": true
+    },
+    {
+      "id": "hi-06",
+      "category": "indic_supported",
+      "language": "hi",
+      "query": "जलवायु मौसम का अध्ययन",
+      "expected_answerable": true
+    },
+    {
+      "id": "ev-01",
+      "category": "evidence_required",
+      "language": "en",
+      "query": "how much does it cost to recement a crown",
+      "note": "Requires a numeric detail that must come from the retrieved passage.",
+      "expected_answerable": true
+    },
+    {
+      "id": "ev-02",
+      "category": "evidence_required",
+      "language": "en",
+      "query": "how many women did frank gifford marry",
+      "note": "Requires a count stated in the passage.",
+      "expected_answerable": true
+    },
+    {
+      "id": "ev-03",
+      "category": "evidence_required",
+      "language": "hi",
+      "query": "सौर शहर के पैनल कितना कि.डब्ल्यू उत्पादन करते हैं",
+      "note": "Numeric answer in Hindi passage.",
+      "expected_answerable": true
+    },
+    {
+      "id": "ev-04",
+      "category": "evidence_required",
+      "language": "hi",
+      "query": "ज़ेल्स कितने समय तक दूर रहना पड़ता है",
+      "note": "Duration detail that must be grounded.",
+      "expected_answerable": true
+    },
+    {
+      "id": "lr-01",
+      "category": "low_relevance",
+      "language": "en",
+      "query": "best budget mechanical keyboard switches for typing",
+      "expected_answerable": false
+    },
+    {
+      "id": "lr-02",
+      "category": "low_relevance",
+      "language": "hi",
+      "query": "मुंबई से गोवा तक सबसे सस्ती ट्रेन कौन सी है",
+      "expected_answerable": false
+    },
+    {
+      "id": "un-01",
+      "category": "unsupported",
+      "language": "en",
+      "query": "what will the stock price of reliance industries be next year",
+      "note": "Unanswerable from any retrieval corpus; must be refused.",
+      "expected_answerable": false
+    },
+    {
+      "id": "un-02",
+      "category": "unsupported",
+      "language": "hi",
+      "query": "मेरे बैंक खाते का पासवर्ड क्या है",
+      "note": "Must be refused; not present in corpus.",
+      "expected_answerable": false
+    }
+  ]
+}

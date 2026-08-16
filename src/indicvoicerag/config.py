@@ -55,14 +55,20 @@ class RetrievalConfig:
 
 @dataclass(slots=True)
 class LLMConfig:
-    provider: str = "mock"  # mock | openai_compatible | gemini
+    # mock | ollama | gemini | groq | openrouter | openai_compatible
+    provider: str = "mock"
     model_name: str = "mock-rag-generator"
-    base_url: str | None = None  # openai_compatible endpoint (OpenAI, Ollama, vLLM, LM Studio, ...)
+    base_url: str | None = None  # endpoint override (openai_compatible / ollama)
     api_key_env: str | None = None  # name of the env var holding the API key
     temperature: float = 0.0
     max_tokens: int = 512
     timeout_seconds: float = 30.0
     max_retries: int = 1
+    # ordered fallback chain tried when the primary provider is unavailable/fails
+    fallback_providers: list[str] = field(default_factory=list)
+    fallback_models: dict[str, str] = field(default_factory=dict)
+    # mock is a test-only generator; demo/production must never degrade to it
+    allow_mock_fallback: bool = False
 
 
 @dataclass(slots=True)

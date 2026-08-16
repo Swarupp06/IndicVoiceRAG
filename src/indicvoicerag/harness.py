@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from typing import Callable
+from typing import Any, Callable
 
 from .config import AppConfig, GuardrailConfig, LLMConfig, RetrievalConfig
 from .context import ContextBuilder, ContextPassage
@@ -30,7 +30,7 @@ from .guardrails import (
     RetrievalQualityChecker,
     SafetyChecker,
 )
-from .llm import LLMProvider
+from .llm import LLMProvider, LLMResponse
 from .prompts import build_rag_messages, is_refusal, parse_confidence, strip_confidence
 from .rag_types import RAGResponse, SourceInfo
 from .vector_store import RetrievalHit
@@ -95,7 +95,7 @@ class RAGHarness:
         def mark(name: str) -> None:
             nonlocal step
             now = time.perf_counter()
-            timings[name] = (now - step) * 1000.0
+            timings[name] = timings.get(name, 0.0) + (now - step) * 1000.0
             step = now
 
         top_k = top_k or self._components.retrieval_config.top_k
@@ -160,14 +160,14 @@ class RAGHarness:
 
         # 6. generate (with retries + timeout)
         strict = False
-        generated: str | None = None
+        result: LLMResponse | None = None
         last_error: Exception | None = None
         max_retries = max(0, self._components.llm_config.max_retries)
         timeout = self._components.llm_config.timeout_seconds
         for _ in range(max_retries + 1):
             messages = build_rag_messages(query, context_text, strict=strict)
             try:
-                generated = self._components.llm.generate(
+                result = self._components.llm.generate(
                     messages,
                     max_tokens=self._components.llm_config.max_tokens,
                     temperature=self._components.llm_config.temperature,
@@ -176,9 +176,12 @@ class RAGHarness:
                 break
             except Exception as exc:  # noqa: BLE001 - provider failures handled
                 last_error = exc
-                generated = None
+                result = None
                 time.sleep(0.1)
         mark("generation")
+
+        llm_info = self._llm_info(result)
+        generated = result.text if result is not None else None
 
         if generated is None or not generated.strip():
             reason = f"generation failed after {max_retries + 1} attempt(s)"
@@ -194,6 +197,7 @@ class RAGHarness:
                 reason=reason,
                 guardrail="generation_failed",
                 metrics=timings if debug else None,
+                llm=llm_info,
             )
 
         answer = strip_confidence(generated).strip()
@@ -211,6 +215,7 @@ class RAGHarness:
                 reason="generator returned an empty answer",
                 guardrail="generation_failed",
                 metrics=timings if debug else None,
+                llm=llm_info,
             )
 
         # 8. grounding check (with strict regeneration retry)
@@ -221,16 +226,18 @@ class RAGHarness:
             for _ in range(max(0, guardrails.max_ungrounded_retries)):
                 messages = build_rag_messages(query, context_text, strict=True)
                 try:
-                    strict_answer = strip_confidence(
-                        self._components.llm.generate(
-                            messages,
-                            max_tokens=self._components.llm_config.max_tokens,
-                            temperature=self._components.llm_config.temperature,
-                            timeout=timeout,
-                        )
-                    ).strip()
+                    strict_result = self._components.llm.generate(
+                        messages,
+                        max_tokens=self._components.llm_config.max_tokens,
+                        temperature=self._components.llm_config.temperature,
+                        timeout=timeout,
+                    )
                 except Exception:  # noqa: BLE001
+                    mark("generation")
                     break
+                mark("generation")
+                strict_answer = strip_confidence(strict_result.text).strip()
+                llm_info = self._llm_info(strict_result)
                 if not strict_answer:
                     break
                 strict_grounding = self._grounding_validator.validate(
@@ -262,7 +269,18 @@ class RAGHarness:
             reason=grounding.reason,
             guardrail=None if grounding.grounded else "ungrounded",
             metrics=timings if debug else None,
+            llm=llm_info,
         )
+
+    def _llm_info(self, result: LLMResponse | None) -> dict[str, Any]:
+        if result is None:
+            return {"provider": self._components.llm.name, "model": self._components.llm.model_name}
+        return {
+            "provider": result.provider,
+            "model": result.model,
+            "latency_ms": round(result.latency_ms, 2),
+            "usage": result.usage,
+        }
 
     @staticmethod
     def _source_from_passage(passage: ContextPassage) -> SourceInfo:

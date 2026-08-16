@@ -11,7 +11,7 @@ from .config import AppConfig
 from .dataset import DatasetInspector
 from .embedding import build_embedding_provider
 from .harness import HarnessComponents, RAGHarness
-from .llm import build_llm_provider
+from .llm import LLMProvider, build_provider_chain, normalize_provider_name
 from .retrieval import RetrievalEngine
 from .vector_store import build_vector_store
 
@@ -46,14 +46,28 @@ def build_indexed_pipeline(
     return harness, inspector
 
 
+_MOCK_MODEL_NAMES = {"", "mock-rag-generator"}
+
+
+def build_llm_from_config(config: AppConfig) -> LLMProvider:
+    """Build the configured provider chain, ignoring a stale mock model name."""
+    model_name: str | None = config.llm.model_name
+    if normalize_provider_name(config.llm.provider) != "mock" and model_name in _MOCK_MODEL_NAMES:
+        model_name = None
+    return build_provider_chain(
+        provider=config.llm.provider,
+        model_name=model_name,
+        base_url=config.llm.base_url or None,
+        api_key_env=config.llm.api_key_env or None,
+        fallback_providers=config.llm.fallback_providers,
+        fallback_models=config.llm.fallback_models,
+        allow_mock_fallback=config.llm.allow_mock_fallback,
+    )
+
+
 def build_harness(config: AppConfig, retrieve_fn) -> RAGHarness:
     """Build a harness around an arbitrary retrieve callable."""
-    llm = build_llm_provider(
-        provider=config.llm.provider,
-        model_name=config.llm.model_name,
-        base_url=config.llm.base_url,
-        api_key_env=config.llm.api_key_env,
-    )
+    llm = build_llm_from_config(config)
     components = HarnessComponents(
         retrieve_fn=retrieve_fn,
         llm=llm,
