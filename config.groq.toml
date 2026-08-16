@@ -1,0 +1,58 @@
+# Phase 2.6 groq-optimized config (fastest trustworthy: top_k=3, connection reuse + warmup)
+[dataset]
+repo_id = "ai4bharat/MSMARCO-XI"
+split = "validation"
+config_name = "default"
+streaming = true
+sample_size = 128
+language = "hin"
+revision = "main"
+allow_insecure_ssl = false
+local_sample_path = ""
+sample_cache_path = ""
+cache_dir = ".cache/hf"
+max_retries = 3
+
+[chunking]
+strategy = "fixed"
+chunk_size = 120
+overlap = 20
+semantic_threshold = 0.35
+sentence_separator_regex = "(?<=[.!?])\\s+"
+
+[embedding]
+provider = "sentence_transformers"
+model_name = "intfloat/multilingual-e5-small"
+dimension = 384
+normalize = true
+
+[vector]
+provider = "faiss"
+index_path = "indexes/dev.index"
+metadata_path = "indexes/dev.metadata.jsonl"
+
+[retrieval]
+top_k = 3
+
+[llm]
+provider = "groq"
+model_name = "llama-3.1-8b-instant"
+base_url = ""
+api_key_env = "GROQ_API_KEY"
+temperature = 0.0
+max_tokens = 512
+timeout_seconds = 30.0
+max_retries = 1
+fallback_providers = []
+fallback_models = {}
+allow_mock_fallback = false
+
+[guardrails]
+min_retrieval_score = 0.35
+min_hits = 1
+max_query_chars = 1000
+grounding_threshold = 0.35
+context_max_tokens = 1500
+max_context_docs = 8
+strict_retry_on_ungrounded = true
+max_ungrounded_retries = 1

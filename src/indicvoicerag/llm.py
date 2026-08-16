@@ -92,6 +92,10 @@ class LLMProvider(ABC):
     def describe(self) -> dict[str, Any]:
         return {"provider": self.name, "model": self.model_name}
 
+    def warmup(self, timeout: float = 15.0) -> None:
+        """Warm caches/connections so the first timed call is fast (no-op default)."""
+        return
+
 
 def _require_key(env_var: str, provider: str) -> str:
     key = os.environ.get(env_var, "").strip()
@@ -109,9 +113,13 @@ def _post_json(
     headers: dict[str, str],
     timeout: float,
     provider: str,
+    client: httpx.Client | None = None,
 ) -> dict[str, Any]:
     try:
-        with httpx.Client(timeout=timeout) as client:
+        if client is None:
+            with httpx.Client(timeout=timeout) as fresh:
+                response = fresh.post(url, json=payload, headers=headers)
+        else:
             response = client.post(url, json=payload, headers=headers)
     except httpx.TimeoutException as exc:
         raise LLMTimeoutError(f"{provider} request timed out after {timeout}s") from exc
@@ -218,6 +226,7 @@ class OpenAICompatibleProvider(LLMProvider):
         base_url: str | None = None,
         api_key_env: str | None = None,
         default_headers: dict[str, str] | None = None,
+        client: httpx.Client | None = None,
     ):
         self._model_name = model_name or self.default_model
         if not self._model_name:
@@ -225,6 +234,7 @@ class OpenAICompatibleProvider(LLMProvider):
         self._base_url = (base_url or self.default_base_url).rstrip("/")
         self._api_key_env = api_key_env if api_key_env is not None else self.default_api_key_env
         self._default_headers = default_headers or {}
+        self._client = client
 
     @property
     def base_url(self) -> str:
@@ -245,6 +255,24 @@ class OpenAICompatibleProvider(LLMProvider):
                 headers["Authorization"] = f"Bearer {key}"
         return headers
 
+    def _ensure_client(self, timeout: float) -> httpx.Client:
+        """Return the persistent connection, creating it lazily (connection reuse)."""
+        if self._client is None:
+            self._client = httpx.Client(timeout=timeout)
+        return self._client
+
+    def warmup(self, timeout: float = 15.0) -> None:
+        """Establish the connection and model route so the first timed call is fast."""
+        try:
+            self.generate(
+                [{"role": "user", "content": "Reply with exactly: OK"}],
+                max_tokens=4,
+                temperature=0.0,
+                timeout=timeout,
+            )
+        except LLMError:
+            pass
+
     def generate(
         self,
         messages: list[dict[str, str]],
@@ -262,7 +290,12 @@ class OpenAICompatibleProvider(LLMProvider):
         headers = self._headers()
         started = time.perf_counter()
         data = _post_json(
-            f"{self._base_url}/chat/completions", payload, headers, timeout, self.name
+            f"{self._base_url}/chat/completions",
+            payload,
+            headers,
+            timeout,
+            self.name,
+            client=self._ensure_client(timeout),
         )
         latency_ms = (time.perf_counter() - started) * 1000.0
         try:
