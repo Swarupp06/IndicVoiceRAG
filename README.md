@@ -1,10 +1,12 @@
-# IndicVoiceRAG - Phase 1 & 2 Foundation
+# IndicVoiceRAG - Phase 1, 2 & 3A Foundation
 
 Backend foundation for HH Goa 2026 Task 2:
 
 **Phase 1 (retrieval):** Real MSMARCO-XI -> Normalization -> Chunking -> Real Multilingual Embeddings -> FAISS Vector Index -> Retrieval -> Retrieval Evaluation
 
 **Phase 2 (RAG):** User Text -> Query Processing -> Retrieval -> Context Building -> LLM Answer Generation -> Grounding Validation -> Guardrails -> Structured Response
+
+**Phase 3A (local speech-to-text):** Audio File -> Local STT (faster-whisper, CPU, ₹0) -> Text -> existing RAG pipeline
 
 ## What is implemented
 
@@ -74,9 +76,19 @@ Backend foundation for HH Goa 2026 Task 2:
 - Per-stage latency instrumentation (debug mode).
 - RAG evaluation harness (behavior metrics; no answer-quality label set yet).
 
+### Local speech-to-text (Phase 3A)
+- `STTProvider` abstraction: `audio file -> TranscriptionResult{text, language, language_probability, duration, processing_time, RTF, model}`.
+- `faster_whisper` provider (CTranslate2, local CPU, **₹0 - no cloud API**), lazy model load (constructing the provider never downloads), `tiny` int8 default, `language`/`beam_size`/`vad_filter` options.
+- `MockSTT` deterministic offline stub; every STT test runs offline (model loading is faked).
+- PyAV-based decoding (`audio.py`) - WAV/Ogg/FLAC/MP3 in, mono 16 kHz float32 out; no system FFmpeg needed.
+- Dependency-free WER (`wer.py`) that tokenizes Devanagari text correctly.
+- Reproducible benchmark (`stt_benchmark.py`): per-sample audio duration, model load, transcription time, RTF, detected language, WER (from `<name>.txt` ground-truth sidecars). Missing ground truth is reported as `accuracy NOT MEASURED` - never invented.
+- Speech -> RAG glue (`speech.py`): `answer_from_audio(stt, harness, audio)` keeps the existing text RAG path untouched.
+- See [Phase 3A](#phase-3a---local-speech-to-text).
+
 ## What is NOT implemented yet
 
-- Speech-to-text / voice input / microphone
+- Microphone input / live streaming (audio is provided as a file)
 - Sarvam/ElevenLabs STT integration
 - Frontend/live demo deployment
 - Authentication
@@ -88,7 +100,7 @@ Backend foundation for HH Goa 2026 Task 2:
 
 ```text
 src/indicvoicerag/
-  cli.py            # CLI entrypoint (inspect/sample/build/retrieve/evaluate/smoke/rag/rag-evaluate)
+  cli.py            # CLI entrypoint (inspect/sample/build/retrieve/evaluate/smoke/rag/rag-evaluate/transcribe/transcribe-rag/benchmark-stt)
   config.py         # central TOML config schema + loader
   dataset.py        # hub inspector + download-first real parquet access + cache
   schemas.py        # normalized document schema + real-record flattening
@@ -107,7 +119,12 @@ src/indicvoicerag/
   harness.py        # RAG orchestration pipeline + latency instrumentation
   rag_types.py      # structured SourceInfo / RAGResponse schema
   rag_evaluate.py   # RAG evaluation harness
-  pipeline.py       # wiring: config -> real retrieval engine -> harness
+  pipeline.py       # wiring: config -> real retrieval engine -> harness (+ STT provider)
+  audio.py          # PyAV decode -> mono 16 kHz float32 + probe (Phase 3A)
+  stt.py            # STTProvider abstraction + faster-whisper/mock providers (Phase 3A)
+  wer.py            # dependency-free WER (Devanagari-aware) (Phase 3A)
+  stt_benchmark.py  # reproducible RTF/WER benchmark (Phase 3A)
+  speech.py         # audio -> STT -> text -> RAGHarness glue (Phase 3A)
 benchmarks/
   queries.json      # fixed 20-query provider benchmark set
   results/          # benchmark JSON + CSV reports
@@ -128,6 +145,8 @@ config.ollama.toml  # local zero-cost real-LLM config
 .venv\Scripts\python.exe -m pip install sentence-transformers faiss-cpu
 # optional lightweight ONNX backend:
 .venv\Scripts\python.exe -m pip install fastembed
+# Phase 3A: local STT (faster-whisper + PyAV for audio decode)
+.venv\Scripts\python.exe -m pip install -e .[stt]
 ```
 
 ## Usage
@@ -572,3 +591,109 @@ limits, it answers Hindi queries in Hindi from the retrieved evidence, it
 refuses unsupported questions, and it produces valid structured output. It is
 not the fastest possible option - if a free Groq/Gemini key is added, the same
 config switch makes it the primary provider and Ollama the offline fallback.
+
+---
+
+# Phase 3A - Local speech-to-text
+
+Goal: turn an **audio file** into text with a **local, ₹0, CPU-only** model, then
+feed that text into the existing Phase 2 RAG pipeline. No cloud STT API, no
+microphone, no TTS.
+
+## Architecture
+
+```text
+AUDIO FILE (wav/ogg/flac/mp3)
+   |
+   v
+audio.load_audio()          PyAV -> mono 16 kHz float32
+   |
+   v
+STTProvider.transcribe()    faster-whisper (CTranslate2, CPU, int8) | mock
+   |
+   v
+TranscriptionResult{ text, language, language_probability,
+                     duration_seconds, processing_time_ms, rtf,
+                     model, load_time_ms, audio_path }
+   |
+   v
+speech.answer_from_audio() -> RAGHarness.answer(query=text)   (text RAG path unchanged)
+```
+
+The `STTProvider` interface is provider-independent, so a future Indic-specific
+model can be swapped in behind the same interface without touching the RAG
+harness.
+
+## CLI
+
+```powershell
+# transcribe one audio file (first run downloads the tiny model into .cache/stt)
+.venv\Scripts\python.exe -m indicvoicerag.cli transcribe --audio samples\hindi.wav --language hi
+
+# full pipeline: audio -> local STT -> text -> retrieval -> LLM -> grounding -> guardrails
+.venv\Scripts\python.exe -m indicvoicerag.cli transcribe-rag --audio samples\hindi.wav --language hi --load-index
+
+# benchmark all samples in samples/ (uses *.txt sidecars for ground truth)
+.venv\Scripts\python.exe -m indicvoicerag.cli benchmark-stt --samples-dir samples --repeat 2 --out results/stt_benchmark.json
+```
+
+`transcribe --json`, `--language`, and `benchmark-stt --audio/--label/--ground-truth/--language/--no-warmup/--json` are also supported.
+
+## Samples
+
+`benchmark-stt` discovers `samples/*.wav` plus a `*.txt` sidecar per file:
+
+```text
+THE REFERENCE TRANSCRIPT      <- first non-empty line = ground truth (WER source)
+language = en                 <- pinned language passed to the model
+source = <where it came from>
+```
+
+An empty first line means **no ground truth**; WER is then reported as
+`accuracy NOT MEASURED` rather than invented. Sample audio files are gitignored
+(they are downloaded, not committed); see `samples/README.md`.
+
+## Benchmark (measured on this machine, 2 vCPU, no GPU)
+
+`faster-whisper` `tiny` / CPU / `int8`, `beam_size=5`, best of 2 runs,
+124 documents indexed in the Hindi FAISS index:
+
+| label | dur (s) | load (ms) | proc (ms) | RTF | lang | WER |
+|---|---|---|---|---|---|---|
+| `en_1272-128104-0000` (LibriSpeech) | 5.86 | 6,340 | 590 | 0.10 | en | 0.059 |
+| `en_1272-128104-0001` (LibriSpeech) | 4.82 | 0 | 520 | 0.11 | en | 0.200 |
+| `en_1272-128104-0002` (LibriSpeech) | 12.48 | 0 | 700 | 0.06 | en | 0.062 |
+| `hindi` (Narsil/asr_dummy, pinned `hi`) | 4.13 | 0 | 2,087 | 0.50 | hi | accuracy NOT MEASURED |
+| `tone` (440 Hz sine sanity check) | 0.50 | 0 | 2,702 | 5.40 | en | accuracy NOT MEASURED |
+
+Summary: `samples=5, errors=0, avg_wer (English) = 0.107`.
+
+Full report incl. transcripts: `results/stt_benchmark.json`.
+
+### Honest caveats
+
+- **Model load** (~6.3 s with a warm cache) happens once on the first
+  transcription; steady-state `transcribe` on English is ~0.06-0.2x real time
+  (RTF < 1) on this 2-vCPU machine.
+- The **`tiny` model is weak on Hindi**: it is inaccurate on clean Hindi speech
+  and initially auto-detected the Hindi sample as `ur`. Pinning
+  `language = "hi"` produces Devanagari output, but the transcript is still
+  poor. `base`/`small` and/or VAD filtering are the obvious accuracy levers.
+- **Hindi WER is not measured** - the `Narsil/asr_dummy` dataset ships no ground
+  truth. English WER uses the real LibriSpeech transcripts from
+  `hf-internal-testing/librispeech_asr_dummy`.
+- No microphone/live streaming; input is a file.
+
+## Configuration
+
+```toml
+[stt]
+provider = "faster_whisper"   # faster_whisper | mock (mock = tests only)
+model_name = "tiny"           # tiny | base | small | medium | large-v3
+device = "cpu"                # this machine has no GPU
+compute_type = "int8"         # int8 (fast CPU) | int8_float32 | int8_float16 | int16 | float32
+language = ""                 # "" = auto-detect; "en" / "hi" to pin
+download_root = ".cache/stt"  # model cache (gitignored)
+beam_size = 5
+vad_filter = false
+```

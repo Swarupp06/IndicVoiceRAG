@@ -22,9 +22,12 @@ from .dataset import DatasetInspector
 from .embedding import build_embedding_provider
 from .evaluation import evaluate_retrieval
 from .llm import build_llm_provider, normalize_provider_name
-from .pipeline import build_harness, build_llm_from_config, build_retrieval_engine
+from .pipeline import build_harness, build_llm_from_config, build_retrieval_engine, build_stt_from_config
 from .rag_evaluate import build_sample_cases, evaluate_rag
 from .retrieval import RetrievalEngine
+from .speech import answer_from_audio
+from .stt import normalize_stt_provider_name
+from .stt_benchmark import STTSample, load_samples, run_stt_benchmark
 from .vector_store import build_vector_store
 
 
@@ -97,6 +100,33 @@ def _build_parser() -> argparse.ArgumentParser:
     bench.add_argument("--load-index", action="store_true", help="Load the persisted index instead of re-indexing")
     bench.add_argument("--out", default=None, help="Write the full JSON report to this path")
     bench.add_argument("--rows-out", default=None, help="Write per-query rows as CSV to this path")
+
+    transcribe = sub.add_parser("transcribe", help="Transcribe a local audio file (Phase 3A STT)")
+    transcribe.add_argument("--audio", required=True, help="Path to a local audio file (WAV preferred)")
+    transcribe.add_argument("--language", default=None, help="Hint language code (e.g. en, hi); default auto-detect")
+    transcribe.add_argument("--json", action="store_true", help="Print raw JSON instead of a table")
+
+    transcribe_rag = sub.add_parser("transcribe-rag", help="Audio -> STT -> text -> existing RAGHarness")
+    transcribe_rag.add_argument("--audio", required=True, help="Path to a local audio file (WAV preferred)")
+    transcribe_rag.add_argument("--language", default=None, help="Hint language code (e.g. en, hi)")
+    transcribe_rag.add_argument("--size", type=int, default=None)
+    transcribe_rag.add_argument("--top-k", type=int, default=None)
+    transcribe_rag.add_argument("--debug", action="store_true", help="Include per-stage latency metrics")
+    transcribe_rag.add_argument("--load-index", action="store_true", help="Load persisted vector index instead of re-indexing")
+
+    benchmark_stt = sub.add_parser(
+        "benchmark-stt",
+        help="Reproducible local STT benchmark: duration / load / RTF / language / WER",
+    )
+    benchmark_stt.add_argument("--audio", action="append", default=None, help="Audio file (repeatable); default: auto-discover samples/*.wav")
+    benchmark_stt.add_argument("--samples-dir", default="samples", help="Directory with .wav + .txt ground-truth sidecars (used when --audio is omitted)")
+    benchmark_stt.add_argument("--label", action="append", default=None, help="Per-case label (repeatable)")
+    benchmark_stt.add_argument("--ground-truth", action="append", default=None, help="Per-case reference transcript (repeatable)")
+    benchmark_stt.add_argument("--language", action="append", default=None, help="Per-case expected language (repeatable)")
+    benchmark_stt.add_argument("--no-warmup", action="store_true", help="Do not pre-load the model before timing")
+    benchmark_stt.add_argument("--repeat", type=int, default=1, help="Per-sample runs; the fastest is reported")
+    benchmark_stt.add_argument("--out", default=None, help="Write the full JSON report to this path")
+    benchmark_stt.add_argument("--json", action="store_true", help="Print raw JSON instead of a table")
     return parser
 
 
@@ -526,6 +556,136 @@ def run_provider_benchmark(
     _print_json({**report, "runs": summary_only, "report_path": out, "rows_path": rows_out})
 
 
+def run_transcribe(config: AppConfig, audio: str, language: str | None, as_json: bool) -> None:
+    stt = build_stt_from_config(config)
+    if normalize_stt_provider_name(config.stt.provider) == "mock":
+        print(
+            "WARNING: stt.provider='mock' is a deterministic test stub. "
+            "Use --config with stt.provider='faster_whisper' for a real transcription.",
+            file=sys.stderr,
+        )
+    result = stt.transcribe(audio, language=language)
+    if as_json:
+        _print_json(result.as_dict())
+        return
+    print(f"audio file       : {result.audio_path or audio}")
+    print(f"model            : {result.model} ({stt.name})")
+    print(f"detected language: {result.language or 'N/A'} (p={result.language_probability:.3f})")
+    print(f"duration         : {result.duration_seconds:.3f} s")
+    print(f"model load       : {result.load_time_ms or 0.0:.1f} ms")
+    print(f"processing       : {result.processing_time_ms:.1f} ms")
+    print(f"RTF              : {result.rtf:.3f}")
+    print(f"transcription    : {result.text}")
+
+
+def run_transcribe_rag(
+    config: AppConfig,
+    audio: str,
+    language: str | None,
+    size: int | None,
+    top_k: int | None,
+    debug: bool,
+    load_index: bool,
+) -> None:
+    stt = build_stt_from_config(config)
+    inspector = DatasetInspector(config.dataset)
+    engine = build_retrieval_engine(config)
+    if load_index:
+        engine.store.load()
+        documents = len(engine.store._chunks)  # noqa: SLF001 - internal count for report
+    else:
+        docs = inspector.normalized_sample(size)
+        engine.index_documents(docs)
+        documents = len(docs)
+    harness = build_harness(config, engine.query)
+
+    transcription, response = answer_from_audio(
+        stt,
+        harness,
+        audio,
+        language=language,
+        top_k=top_k,
+        debug=debug,
+    )
+    _print_json(
+        {
+            "transcription": transcription.as_dict(),
+            "rag_response": response.as_dict(include_metrics=debug),
+            "pipeline": "AUDIO FILE -> LOCAL STT -> TEXT -> RETRIEVAL -> CONTEXT -> LLM -> GROUNDING -> GUARDRAILS -> STRUCTURED RESPONSE",
+            "provenance": _data_provenance(inspector),
+            "embedder": engine.embedder.describe(),
+            "documents_indexed": documents,
+            "top_k": top_k or config.retrieval.top_k,
+        }
+    )
+
+
+def run_stt_benchmark_cli(
+    config: AppConfig,
+    audio_paths: list[str] | None,
+    samples_dir: str,
+    labels: list[str] | None,
+    ground_truths: list[str] | None,
+    languages: list[str] | None,
+    warmup: bool,
+    repeat: int,
+    out: str | None,
+    as_json: bool,
+) -> None:
+    stt = build_stt_from_config(config)
+    if audio_paths:
+        samples: list[STTSample] = []
+        for index, path in enumerate(audio_paths):
+            samples.append(
+                STTSample(
+                    path=path,
+                    label=(labels or [""] * len(audio_paths))[index] if labels else path,
+                    language_expected=(languages or [None] * len(audio_paths))[index] if languages else None,
+                    reference=(ground_truths or [None] * len(audio_paths))[index] if ground_truths else None,
+                )
+            )
+    else:
+        samples = load_samples(samples_dir)
+        if not samples:
+            raise FileNotFoundError(f"no *.wav files found in {samples_dir!r}; use --audio to pass files explicitly")
+
+    report = run_stt_benchmark(stt, samples, repeat=repeat, warmup=warmup)
+    if out:
+        Path(out).parent.mkdir(parents=True, exist_ok=True)
+        Path(out).write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
+    if as_json:
+        _print_json(report)
+        return
+
+    provider = report["provider"]
+    print(f"STT benchmark: {provider.get('provider')} / {provider.get('model')} "
+          f"(device={provider.get('device') or 'cpu'}, compute={provider.get('compute_type') or 'n/a'})")
+    summary = report["summary"]
+    print(f"samples={summary['samples']} with_reference={summary['with_reference']} "
+          f"wer_measured={summary['wer_measured']} errors={summary['errors']} "
+          f"avg_wer={summary['avg_wer'] if summary['avg_wer'] is not None else 'n/a'}")
+    header = f"{'label':<16}{'dur(s)':>8}{'load(ms)':>10}{'proc(ms)':>10}{'RTF':>8}{'lang':>6}{'WER':>8}"
+    print(header)
+    print("-" * len(header))
+    for case in report["samples"]:
+        if "error" in case:
+            print(f"{case['label']:<16}{'--':>8}{'--':>10}{'--':>10}{'--':>8}{'--':>6}{'--':>8}  {case['error']}")
+            continue
+        wer = "n/a" if case.get("wer") is None else f"{case['wer']:.3f}"
+        print(
+            f"{case['label']:<16}{case['audio_duration_seconds']:>8.2f}{case['model_load_ms']:>10.1f}"
+            f"{case['transcription_time_ms']:>10.1f}{case['rtf']:>8.2f}{(case['detected_language'] or '?'):>6}"
+            f"{wer:>8}"
+        )
+    for case in report["samples"]:
+        if "error" in case:
+            continue
+        print(f"\n[{case['label']}] {case['text']}")
+
+    if summary["wer_measured"] < summary["with_reference"]:
+        print("\nWER is only reported when a ground-truth reference exists (samples/<name>.txt sidecar or --ground-truth).")
+
+
 def main() -> None:
     try:
         sys.stdout.reconfigure(encoding="utf-8")
@@ -582,6 +742,31 @@ def main() -> None:
             load_index=args.load_index,
             out=args.out,
             rows_out=args.rows_out,
+        )
+    elif args.command == "transcribe":
+        run_transcribe(config, audio=args.audio, language=args.language, as_json=args.json)
+    elif args.command == "transcribe-rag":
+        run_transcribe_rag(
+            config,
+            audio=args.audio,
+            language=args.language,
+            size=args.size,
+            top_k=args.top_k,
+            debug=args.debug,
+            load_index=args.load_index,
+        )
+    elif args.command == "benchmark-stt":
+        run_stt_benchmark_cli(
+            config,
+            audio_paths=args.audio,
+            samples_dir=args.samples_dir,
+            labels=args.label,
+            ground_truths=args.ground_truth,
+            languages=args.language,
+            warmup=not args.no_warmup,
+            repeat=args.repeat,
+            out=args.out,
+            as_json=args.json,
         )
     else:
         raise ValueError(f"Unsupported command: {args.command}")

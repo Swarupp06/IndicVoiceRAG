@@ -67,3 +67,17 @@ context_max_tokens = 1500     # total context budget passed to the LLM
 max_context_docs = 8          # max sources in the context
 strict_retry_on_ungrounded = true
 max_ungrounded_retries = 1
+
+# --- Phase 3A: local speech-to-text (must stay at Rs 0) ---
+# provider:
+#   faster_whisper   local CTranslate2 whisper on CPU, no cloud cost
+#   mock             deterministic offline stub - TESTS ONLY
+[stt]
+provider = "faster_whisper"
+model_name = "tiny"           # tiny | base | small | medium | large-v3
+device = "cpu"                # this machine has no GPU; keep cpu
+compute_type = "int8"         # int8 (fast CPU) | int8_float32 | float32
+language = ""                 # "" = auto-detect; set "en" / "hi" to pin
+download_root = ".cache/stt"  # model cache dir (gitignored)
+beam_size = 5
+vad_filter = false            # Silero VAD pre-filtering (off by default)

@@ -13,6 +13,7 @@ from .embedding import build_embedding_provider
 from .harness import HarnessComponents, RAGHarness
 from .llm import LLMProvider, build_provider_chain, normalize_provider_name
 from .retrieval import RetrievalEngine
+from .stt import STTProvider, build_stt_provider
 from .vector_store import build_vector_store
 
 
@@ -76,3 +77,17 @@ def build_harness(config: AppConfig, retrieve_fn) -> RAGHarness:
         guardrails=config.guardrails,
     )
     return RAGHarness(components)
+
+
+def build_stt_from_config(config: AppConfig) -> STTProvider:
+    """Build the configured STT provider (mock | faster_whisper)."""
+    return build_stt_provider(
+        provider=config.stt.provider,
+        model_name=config.stt.model_name,
+        device=config.stt.device,
+        compute_type=config.stt.compute_type,
+        language=config.stt.language,
+        beam_size=config.stt.beam_size,
+        vad_filter=config.stt.vad_filter,
+        download_root=config.stt.download_root,
+    )

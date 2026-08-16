@@ -1,5 +1,6 @@
-"""IndicVoiceRAG Phase 1 foundation package."""
+"""IndicVoiceRAG foundation package."""
 
-from .config import AppConfig, load_config
+from .config import AppConfig, STTConfig, load_config
+from .stt import STTProvider, TranscriptionResult
 
-__all__ = ["AppConfig", "load_config"]
+__all__ = ["AppConfig", "STTConfig", "STTProvider", "TranscriptionResult", "load_config"]

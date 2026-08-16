@@ -1,0 +1,101 @@
+{
+  "provider": {
+    "provider": "faster_whisper",
+    "model": "tiny",
+    "device": "cpu",
+    "compute_type": "int8",
+    "language": null
+  },
+  "repeat": 2,
+  "summary": {
+    "samples": 5,
+    "with_reference": 3,
+    "wer_measured": 3,
+    "errors": 0,
+    "avg_wer": 0.1071
+  },
+  "samples": [
+    {
+      "label": "en_1272-128104-0000",
+      "path": "samples\\en_1272-128104-0000.wav",
+      "language_expected": "en",
+      "has_reference": true,
+      "model_load_ms": 6340.5,
+      "detected_language": "en",
+      "language_probability": 1.0,
+      "audio_duration_seconds": 5.855,
+      "transcription_time_ms": 589.93,
+      "total_processing_ms": 604.8,
+      "rtf": 0.1008,
+      "rtf_including_load": 0.1033,
+      "text": "Mr. Quilter is the apostle of the middle classes, and we are glad to welcome his gospel.",
+      "wer": 0.0588
+    },
+    {
+      "label": "en_1272-128104-0001",
+      "path": "samples\\en_1272-128104-0001.wav",
+      "language_expected": "en",
+      "has_reference": true,
+      "model_load_ms": 0.0,
+      "detected_language": "en",
+      "language_probability": 1.0,
+      "audio_duration_seconds": 4.815,
+      "transcription_time_ms": 519.79,
+      "total_processing_ms": 565.33,
+      "rtf": 0.108,
+      "rtf_including_load": 0.1174,
+      "text": "Nor is Mr. Quilters' manner less interesting than his matter.",
+      "wer": 0.2
+    },
+    {
+      "label": "en_1272-128104-0002",
+      "path": "samples\\en_1272-128104-0002.wav",
+      "language_expected": "en",
+      "has_reference": true,
+      "model_load_ms": 0.0,
+      "detected_language": "en",
+      "language_probability": 1.0,
+      "audio_duration_seconds": 12.485,
+      "transcription_time_ms": 700.25,
+      "total_processing_ms": 744.17,
+      "rtf": 0.0561,
+      "rtf_including_load": 0.0596,
+      "text": "He tells us that, at this festive season of the year, with Christmas and a roast beef looming before us, similarly drawn from eating and its results occur most readily to the mind.",
+      "wer": 0.0625
+    },
+    {
+      "label": "hindi",
+      "path": "samples\\hindi.wav",
+      "language_expected": "hi",
+      "has_reference": false,
+      "model_load_ms": 0.0,
+      "detected_language": "hi",
+      "language_probability": 1.0,
+      "audio_duration_seconds": 4.133,
+      "transcription_time_ms": 2086.67,
+      "total_processing_ms": 2099.71,
+      "rtf": 0.5048,
+      "rtf_including_load": 0.508,
+      "text": "Mirchi mein, ki tene vibinda prajatiya hai.",
+      "wer": null,
+      "wer_note": "accuracy NOT MEASURED: no ground-truth transcript"
+    },
+    {
+      "label": "tone",
+      "path": "samples\\tone.wav",
+      "language_expected": "en",
+      "has_reference": false,
+      "model_load_ms": 0.0,
+      "detected_language": "en",
+      "language_probability": 1.0,
+      "audio_duration_seconds": 0.5,
+      "transcription_time_ms": 2702.11,
+      "total_processing_ms": 2709.59,
+      "rtf": 5.4042,
+      "rtf_including_load": 5.4192,
+      "text": "",
+      "wer": null,
+      "wer_note": "accuracy NOT MEASURED: no ground-truth transcript"
+    }
+  ]
+}

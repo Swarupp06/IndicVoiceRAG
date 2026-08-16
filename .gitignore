@@ -22,6 +22,14 @@ data/
 datasets/
 hf_datasets/
 
+# STT sample audio and downloaded whisper models (Phase 3A)
+# samples/* ignores audio + sidecars but keeps the committed README
+samples/*
+!samples/README.md
+.cache/stt/
+tmp/
+samples_raw_hindi.ogg
+
 # Vector indexes and generated artifacts
 indexes/
 artifacts/

@@ -84,6 +84,19 @@ class GuardrailConfig:
 
 
 @dataclass(slots=True)
+class STTConfig:
+    # mock | faster_whisper
+    provider: str = "faster_whisper"
+    model_name: str = "tiny"  # tiny | base | small | medium | large-v3 (local, no cloud cost)
+    device: str = "cpu"  # this project has no GPU; keep CPU
+    compute_type: str = "int8"  # int8 | int8_float32 | int8_float16 | int16 | float32
+    language: str | None = None  # e.g. "en", "hi"; None = auto-detect
+    download_root: str | None = None  # where to cache the model (default .cache/stt)
+    beam_size: int = 5
+    vad_filter: bool = False
+
+
+@dataclass(slots=True)
 class AppConfig:
     dataset: DatasetConfig = field(default_factory=DatasetConfig)
     chunking: ChunkingConfig = field(default_factory=ChunkingConfig)
@@ -92,6 +105,7 @@ class AppConfig:
     retrieval: RetrievalConfig = field(default_factory=RetrievalConfig)
     llm: LLMConfig = field(default_factory=LLMConfig)
     guardrails: GuardrailConfig = field(default_factory=GuardrailConfig)
+    stt: STTConfig = field(default_factory=STTConfig)
 
 
 def _merge_into_dataclass(instance: Any, payload: dict[str, Any]) -> None:
