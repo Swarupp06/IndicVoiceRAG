@@ -222,6 +222,33 @@ def test_faster_whisper_audio_error_before_model_load(tmp_path: Path) -> None:
         stt.transcribe(str(tmp_path / "nope.wav"))
 
 
+def test_faster_whisper_model_loaded_once_and_reused_across_turns(tmp_path: Path) -> None:
+    """Phase 3C.1 regression: one provider instance must build the model exactly
+    once and reuse it for every transcribe call (no per-request reload)."""
+    audio = _write_wav(tmp_path / "fw_reuse.wav")
+    fake = _FakeWhisperModel(segments=[_FakeSegment("नमस्ते", 0.0, 0.5)], info=_FakeInfo())
+    calls = {"builds": 0, "instance": None}
+
+    def factory():
+        calls["builds"] += 1
+        calls["instance"] = fake
+        return fake
+
+    stt = FasterWhisperSTT(model_name="tiny", model_factory=factory)
+
+    first = stt.transcribe(str(audio))
+    second = stt.transcribe(str(audio))
+    third = stt.transcribe(str(audio))
+
+    assert calls["builds"] == 1
+    assert len(fake.calls) == 3
+    assert stt.model_load_seconds is not None
+    assert first.load_time_ms == pytest.approx(stt.model_load_seconds * 1000.0, abs=1.0)
+    assert second.load_time_ms == first.load_time_ms  # load is not repeated
+    assert third.load_time_ms == first.load_time_ms
+    assert stt._model is fake  # noqa: SLF001 - the cached instance is the factory's model
+
+
 # --- builder ---
 def test_build_stt_provider_mock() -> None:
     provider = build_stt_provider(provider="mock")
