@@ -100,8 +100,12 @@ PROVIDER_COSTS: dict[str, ProviderCost] = {
         account_verified=False,
         source="https://console.groq.com/docs/rate-limits",
         notes=(
-            "Groq's Free plan needs an API key but no card. No key was available in this session, "
-            "so the provider is implemented but not benchmarked."
+            "Groq's Free plan needs an API key but no card. A real benchmark ran on "
+            "llama-3.1-8b-instant (20 queries, throttled to the 6,000 TPM limit; "
+            "26,823 tokens total) with no paid requests and no billing required, so the "
+            "₹0 path is evidenced. Account billing tier is not directly verifiable from "
+            "this machine (no billing API access), so the account stays NOT "
+            "ACCOUNT-VERIFIED."
         ),
     ),
     "openrouter": ProviderCost(

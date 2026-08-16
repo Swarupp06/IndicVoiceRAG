@@ -1,0 +1,604 @@
+{
+  "benchmark": "indicvoicerag-phase2.5-llm-providers",
+  "query_count": 20,
+  "dataset": {
+    "source": "huggingface_hub_live_fetch",
+    "repo_id": "ai4bharat/MSMARCO-XI",
+    "split": "validation",
+    "language": "hin",
+    "parquet_file": "validation/hinval.parquet",
+    "url": "https://huggingface.co/datasets/ai4bharat/MSMARCO-XI/resolve/main/validation/hinval.parquet",
+    "cached_at": "2026-08-14T14:58:01+0530",
+    "record_count": 19987
+  },
+  "embedder": {
+    "provider": "sentence_transformers",
+    "model": "intfloat/multilingual-e5-small",
+    "dimension": 384,
+    "runtime": "pytorch-cpu",
+    "prefix_style": "e5"
+  },
+  "runs": {
+    "groq": {
+      "model": "llama-3.1-8b-instant",
+      "cost": {
+        "provider": "groq",
+        "model": "llama-3.1-8b-instant",
+        "free": true,
+        "billing_required": false,
+        "api_key_required": true,
+        "card_required": false,
+        "free_limit": "Free plan: 30 RPM / 14,400 RPD / 6,000 TPM / 500,000 TPD for llama-3.1-8b-instant",
+        "api_cost_during_benchmark": "₹0",
+        "eligible_zero_cost": true,
+        "account_verified": false,
+        "status": "FREE (DOCS) / NOT ACCOUNT-VERIFIED",
+        "source": "https://console.groq.com/docs/rate-limits",
+        "notes": "Groq's Free plan needs an API key but no card. A real benchmark ran on llama-3.1-8b-instant (20 queries, throttled to the 6,000 TPM limit; 26,823 tokens total) with no paid requests and no billing required, so the ₹0 path is evidenced. Account billing tier is not directly verifiable from this machine (no billing API access), so the account stays NOT ACCOUNT-VERIFIED.",
+        "checked_on": "2026-08-16"
+      },
+      "summary": {
+        "queries": 20,
+        "errors": 0,
+        "latency_ms": {
+          "retrieval": {
+            "p50": 32.93,
+            "p70": 35.2,
+            "p100": 318.27,
+            "avg": 48.0,
+            "n": 20
+          },
+          "context": {
+            "p50": 0.23,
+            "p70": 0.25,
+            "p100": 0.43,
+            "avg": 0.24,
+            "n": 20
+          },
+          "generation": {
+            "p50": 767.22,
+            "p70": 883.96,
+            "p100": 2038.66,
+            "avg": 845.65,
+            "n": 20
+          },
+          "grounding": {
+            "p50": 0.27,
+            "p70": 0.32,
+            "p100": 0.83,
+            "avg": 0.26,
+            "n": 20
+          },
+          "total": {
+            "p50": 799.27,
+            "p70": 956.34,
+            "p100": 2071.65,
+            "avg": 894.15,
+            "n": 20
+          }
+        },
+        "avg_generation_ms": 845.65,
+        "guardrails": {
+          "answered": 20
+        },
+        "by_category": {
+          "english_supported": {
+            "total": 6,
+            "answered": 6,
+            "refused": 0,
+            "grounded": 6
+          },
+          "indic_supported": {
+            "total": 6,
+            "answered": 6,
+            "refused": 0,
+            "grounded": 6
+          },
+          "evidence_required": {
+            "total": 4,
+            "answered": 4,
+            "refused": 0,
+            "grounded": 4
+          },
+          "low_relevance": {
+            "total": 2,
+            "answered": 2,
+            "refused": 0,
+            "grounded": 2
+          },
+          "unsupported": {
+            "total": 2,
+            "answered": 2,
+            "refused": 0,
+            "grounded": 2
+          }
+        },
+        "sub_200ms_total": false
+      },
+      "records": [
+        {
+          "provider": "groq",
+          "model": "llama-3.1-8b-instant",
+          "query_id": "en-01",
+          "category": "english_supported",
+          "language": "en",
+          "query": "what is a corporation?",
+          "retrieval_latency_ms": 318.27,
+          "context_latency_ms": 0.43,
+          "generation_latency_ms": 821.73,
+          "grounding_latency_ms": 0.66,
+          "total_latency_ms": 1141.1,
+          "grounded": true,
+          "guardrail": null,
+          "answer": "एक निगम एक व्यक्तियों का एक समूह है, जो कानून द्वारा या कानून के अधिकार के तहत बनाया गया है, जिसका एक निरंतर अस्तित्व है जो इसके सदस्यों के अस्तित्व से स्वतंत्र है, और शक्तियाँ और दायित्व जो इसके सदस्यों से अलग हैं।",
+          "confidence": 0.9263,
+          "error": null,
+          "usage": {
+            "prompt_tokens": 1110,
+            "completion_tokens": 103,
+            "total_tokens": 1213
+          }
+        },
+        {
+          "provider": "groq",
+          "model": "llama-3.1-8b-instant",
+          "query_id": "en-02",
+          "category": "english_supported",
+          "language": "en",
+          "query": "honesty or integrity definition",
+          "retrieval_latency_ms": 34.31,
+          "context_latency_ms": 0.25,
+          "generation_latency_ms": 869.42,
+          "grounding_latency_ms": 0.27,
+          "total_latency_ms": 904.25,
+          "grounded": true,
+          "guardrail": null,
+          "answer": "ईमानदारी की परिभाषा यह है: ईमानदारी एक व्यक्ति का मूल्य और नैतिकता है जो ईमानदारी से संबंधित या उसके अलावा तथ्यों का पालन है। (Source 1)\n\nइसके अलावा, ईमानदारी को निम्नलिखित रूप से परिभाषित किया जा सकता है:\n\n- ईमानदार होने की गुणवत्ता: सम्मान, सम्मानजनकता, भ्रष्टाचाररहितता, अखंडता, दृढ़ता। (Source 2)\n- कार्यों, मूल्यों, तरीकों, उपायों, सिद्धांतों, अपेक्षाओं और परिणामों की संगति की अवधारणा। (Source 4)\n- किसी के कार्यों की ईमानदारी और सत्यता या सटीकता के रूप में माना जाता है। (Source 4)",
+          "confidence": 0.8776,
+          "error": null,
+          "usage": {
+            "prompt_tokens": 810,
+            "completion_tokens": 253,
+            "total_tokens": 1063
+          }
+        },
+        {
+          "provider": "groq",
+          "model": "llama-3.1-8b-instant",
+          "query_id": "en-03",
+          "category": "english_supported",
+          "language": "en",
+          "query": "how does nhl playoff seeding work",
+          "retrieval_latency_ms": 33.58,
+          "context_latency_ms": 0.2,
+          "generation_latency_ms": 925.83,
+          "grounding_latency_ms": 0.6,
+          "total_latency_ms": 960.24,
+          "grounded": true,
+          "guardrail": null,
+          "answer": "एनएचएल प्लेऑफ़ सीडिंग के बारे में: प्रत्येक सम्मेलन में सबसे अधिक अंक प्राप्त करने वाली टीमों को प्रत्येक सम्मेलन के लिए 1-3 क्रमांक दिया जाता है और अगली उच्चतम टीमों को प्रत्येक सम्मेलन के लिए 4-8 क्रमांक दिया जाता है। \n\nप्रत्येक डिवीजन में पहले स्थान वाली टीम को अपने डिवीजनल प्लेऑफ़ में नंबर 1 सीड मिलेगा, दूसरे और तीसरे स्थान वाली टीमें अपने डिवीजनल प्लेऑफ़ में नंबर 2 और नंबर 3 सीड होंगी। दो वाइल्ड कार्ड टीमें नंबर 4 सीड लेंगी।",
+          "confidence": 0.883,
+          "error": null,
+          "usage": {
+            "prompt_tokens": 1191,
+            "completion_tokens": 234,
+            "total_tokens": 1425
+          }
+        },
+        {
+          "provider": "groq",
+          "model": "llama-3.1-8b-instant",
+          "query_id": "en-04",
+          "category": "english_supported",
+          "language": "en",
+          "query": "chart for foods low in potassium.",
+          "retrieval_latency_ms": 45.08,
+          "context_latency_ms": 0.27,
+          "generation_latency_ms": 914.34,
+          "grounding_latency_ms": 0.02,
+          "total_latency_ms": 959.72,
+          "grounded": true,
+          "guardrail": null,
+          "answer": "REFUSED: प्राप्त किए गए संदर्भ से पर्याप्त जानकारी नहीं मिली।",
+          "confidence": 0.4256,
+          "error": null,
+          "usage": {
+            "prompt_tokens": 1076,
+            "completion_tokens": 29,
+            "total_tokens": 1105
+          }
+        },
+        {
+          "provider": "groq",
+          "model": "llama-3.1-8b-instant",
+          "query_id": "en-05",
+          "category": "english_supported",
+          "language": "en",
+          "query": "does filth cause ringworm?",
+          "retrieval_latency_ms": 32.93,
+          "context_latency_ms": 0.3,
+          "generation_latency_ms": 620.76,
+          "grounding_latency_ms": 0.01,
+          "total_latency_ms": 654.0,
+          "grounded": true,
+          "guardrail": null,
+          "answer": "REFUSED: Retrieved context does not mention filth as a cause of ringworm.",
+          "confidence": 0.4205,
+          "error": null,
+          "usage": {
+            "prompt_tokens": 1121,
+            "completion_tokens": 18,
+            "total_tokens": 1139
+          }
+        },
+        {
+          "provider": "groq",
+          "model": "llama-3.1-8b-instant",
+          "query_id": "en-06",
+          "category": "english_supported",
+          "language": "en",
+          "query": "what is barter system and its problems",
+          "retrieval_latency_ms": 31.96,
+          "context_latency_ms": 0.18,
+          "generation_latency_ms": 2038.66,
+          "grounding_latency_ms": 0.83,
+          "total_latency_ms": 2071.65,
+          "grounded": true,
+          "guardrail": null,
+          "answer": "बार्टर सिस्टम की प्रमुख सीमाएँ हैं: 1. दोहरे संयोग की कमी: बार्टर प्रणाली केवल तभी काम कर सकती है जब खरीदार और विक्रेता दोनों एक दूसरे के सामान का आदान-प्रदान करने के लिए तैयार हों। उदाहरण के लिए, ए केवल तभी बी के साथ सामान का आदान-प्रदान कर सकता है जब ए के पास बी की आवश्यकता होती है और बी के पास ए की आवश्यकता होती है। हालांकि, ऐसा दोहरा संयोग बहुत ही दुर्लभ है। \n\nइसके अलावा, सर्वोत्तम उत्तरः अर्थशास्त्र में बार्टर प्रणाली की सबसे बड़ी समस्या यह है कि आदिम बार्टर के लिए जिनके साथ आप व्यापार करना चाहते हैं उनके पास कुछ ऐसा होना चाहिए जो आप चाहते हैं। \n\nएक बार्टरिंग सिस्टम में, अन्य सामान प्राप्त करने का एकमात्र तरीका है अपने सामान का उन लोगों के लिए व्यापार करना जिनकी आपको आवश्यकता है। यह एक समस्या बन जाती है यदि आपका सामान उस व्यक्ति के लिए वांछनीय नहीं है जिसके साथ आप बार्टर करना चाहते हैं या यदि आपका सामान अमूर्त है, जैसे",
+          "confidence": 0.9054,
+          "error": null,
+          "usage": {
+            "prompt_tokens": 1097,
+            "completion_tokens": 412,
+            "total_tokens": 1509
+          }
+        },
+        {
+          "provider": "groq",
+          "model": "llama-3.1-8b-instant",
+          "query_id": "hi-01",
+          "category": "indic_supported",
+          "language": "hi",
+          "query": "कॉर्पोरेशन क्या है?",
+          "retrieval_latency_ms": 24.88,
+          "context_latency_ms": 0.25,
+          "generation_latency_ms": 930.82,
+          "grounding_latency_ms": 0.38,
+          "total_latency_ms": 956.34,
+          "grounded": true,
+          "guardrail": null,
+          "answer": "कॉर्पोरेशन क्या है?\n\nएक निगम एक कंपनी या लोगों का समूह है जो एक एकल इकाई (कानूनी रूप से एक व्यक्ति) के रूप में कार्य करने के लिए अधिकृत है और कानून में इस तरह से मान्यता प्राप्त है। (Source 2)\n\nयह एक विशिष्ट देश में निगमित होती है, अक्सर उस देश के एक छोटे उपसमूह, जैसे कि एक राज्य या प्रांत, की सीमाओं के भीतर। (Source 4)\n\nएक निगम एक व्यक्तियों का एक समूह है, जो कानून द्वारा या कानून के अधिकार के तहत बनाया गया है, जिसका एक निरंतर अस्तित्व है जो इसके सदस्यों के अस्तित्व से स्वतंत्र है, और शक्तियाँ और दायित्व जो इसके सदस्यों से अलग हैं। (Source 1)",
+          "confidence": 0.9108,
+          "error": null,
+          "usage": {
+            "prompt_tokens": 1056,
+            "completion_tokens": 271,
+            "total_tokens": 1327
+          }
+        },
+        {
+          "provider": "groq",
+          "model": "llama-3.1-8b-instant",
+          "query_id": "hi-02",
+          "category": "indic_supported",
+          "language": "hi",
+          "query": "ईमानदारी या सच्चाई की परिभाषा",
+          "retrieval_latency_ms": 33.33,
+          "context_latency_ms": 0.15,
+          "generation_latency_ms": 769.11,
+          "grounding_latency_ms": 0.22,
+          "total_latency_ms": 802.84,
+          "grounded": true,
+          "guardrail": null,
+          "answer": "ईमानदारी या सच्चाई की परिभाषा यह है: कार्यों, मूल्यों, तरीकों, उपायों, सिद्धांतों, अपेक्षाओं और परिणामों की संगति की अवधारणा। नैतिकता में, इमानदारी को किसी के कार्यों की ईमानदारी और सत्यता या सटीकता के रूप में माना जाता है।",
+          "confidence": 0.9241,
+          "error": null,
+          "usage": {
+            "prompt_tokens": 856,
+            "completion_tokens": 116,
+            "total_tokens": 972
+          }
+        },
+        {
+          "provider": "groq",
+          "model": "llama-3.1-8b-instant",
+          "query_id": "hi-03",
+          "category": "indic_supported",
+          "language": "hi",
+          "query": "एन.एच.एल. प्लेऑफ़ सीडिंग कैसे काम करती है",
+          "retrieval_latency_ms": 35.2,
+          "context_latency_ms": 0.25,
+          "generation_latency_ms": 922.86,
+          "grounding_latency_ms": 0.31,
+          "total_latency_ms": 958.62,
+          "grounded": true,
+          "guardrail": null,
+          "answer": "एन.एच.एल. प्लेऑफ़ सीडिंग कैसे काम करती है:\n\nप्रत्येक डिवीजन में पहले स्थान वाली टीम को अपने डिवीजनल प्लेऑफ़ में नंबर 1 सीड मिलेगा। 2 प्रत्येक डिवीजन में दूसरे और तीसरे स्थान वाली टीमें अपने डिवीजनल प्लेऑफ़ में नंबर 2 और नंबर 3 सीड होंगी। 3 वे पहले दौर में आमने-सामने होंगे। 4 दो वाइल्ड कार्ड टीमें नंबर 4 सीड लेंगी।",
+          "confidence": 0.9364,
+          "error": null,
+          "usage": {
+            "prompt_tokens": 1132,
+            "completion_tokens": 175,
+            "total_tokens": 1307
+          }
+        },
+        {
+          "provider": "groq",
+          "model": "llama-3.1-8b-instant",
+          "query_id": "hi-04",
+          "category": "indic_supported",
+          "language": "hi",
+          "query": "क्या गंदगी के कारण दाद होता है?",
+          "retrieval_latency_ms": 31.41,
+          "context_latency_ms": 0.25,
+          "generation_latency_ms": 767.22,
+          "grounding_latency_ms": 0.39,
+          "total_latency_ms": 799.27,
+          "grounded": true,
+          "guardrail": null,
+          "answer": "दाद गंदगी के कारण नहीं होता है। यह कवक के कारण होता है, जो त्वचा की बाहरी परत पर फैलता है। [Source 1] में कहा गया है कि कवक हमारे पर्यावरण में हर जगह मौजूद हैं, जिसमें मानव शरीर भी शामिल है, और वे गर्म, नम क्षेत्रों में पनपते हैं।",
+          "confidence": 0.8775,
+          "error": null,
+          "usage": {
+            "prompt_tokens": 1076,
+            "completion_tokens": 117,
+            "total_tokens": 1193
+          }
+        },
+        {
+          "provider": "groq",
+          "model": "llama-3.1-8b-instant",
+          "query_id": "hi-05",
+          "category": "indic_supported",
+          "language": "hi",
+          "query": "बाज़ कितनी तेजी से यात्रा करता है",
+          "retrieval_latency_ms": 29.42,
+          "context_latency_ms": 0.29,
+          "generation_latency_ms": 1428.34,
+          "grounding_latency_ms": 0.32,
+          "total_latency_ms": 1458.37,
+          "grounded": true,
+          "guardrail": null,
+          "answer": "REFUSED: गति के बारे में कोई जानकारी नहीं है।",
+          "confidence": 0.4343,
+          "error": null,
+          "usage": {
+            "prompt_tokens": 1163,
+            "completion_tokens": 23,
+            "total_tokens": 1186
+          }
+        },
+        {
+          "provider": "groq",
+          "model": "llama-3.1-8b-instant",
+          "query_id": "hi-06",
+          "category": "indic_supported",
+          "language": "hi",
+          "query": "जलवायु मौसम का अध्ययन",
+          "retrieval_latency_ms": 31.0,
+          "context_latency_ms": 0.23,
+          "generation_latency_ms": 883.96,
+          "grounding_latency_ms": 0.31,
+          "total_latency_ms": 915.51,
+          "grounded": true,
+          "guardrail": null,
+          "answer": "जलवायु मौसम का अध्ययन है, जिसे वैज्ञानिक रूप से एक समय अवधि में मौसम की औसत स्थिति के रूप में परिभाषित किया गया है और यह वायुमंडलीय विज्ञान की एक शाखा है। (Source 1)\n\nयह जलवायु विज्ञान का अध्ययन है, जो मौसम प्रक्रियाओं और पूर्वानुमान पर केंद्रित है। (Source 1)\n\nजलवायु विज्ञान मौसम के पैटर्न में बड़े रुझानों का अध्ययन है। (Source 3)\n\nजलवायु बनाम मौसम का अध्ययन जलवायु का अध्ययन है, जिसे वैज्ञानिक रूप से एक समय अवधि में औसत मौसम की स्थिति के रूप में परिभाषित किया गया है और यह वायुमंडलीय विज्ञान की एक शाखा है। (Source 4)",
+          "confidence": 0.9505,
+          "error": null,
+          "usage": {
+            "prompt_tokens": 922,
+            "completion_tokens": 262,
+            "total_tokens": 1184
+          }
+        },
+        {
+          "provider": "groq",
+          "model": "llama-3.1-8b-instant",
+          "query_id": "ev-01",
+          "category": "evidence_required",
+          "language": "en",
+          "query": "how much does it cost to recement a crown",
+          "retrieval_latency_ms": 35.4,
+          "context_latency_ms": 0.17,
+          "generation_latency_ms": 604.11,
+          "grounding_latency_ms": 0.02,
+          "total_latency_ms": 639.69,
+          "grounded": true,
+          "guardrail": null,
+          "answer": "REFUSED: क्राउन को फिर से लगाने की कीमत के बारे में कोई विशिष्ट जानकारी नहीं मिली।",
+          "confidence": 0.4288,
+          "error": null,
+          "usage": {
+            "prompt_tokens": 971,
+            "completion_tokens": 43,
+            "total_tokens": 1014
+          }
+        },
+        {
+          "provider": "groq",
+          "model": "llama-3.1-8b-instant",
+          "query_id": "ev-02",
+          "category": "evidence_required",
+          "language": "en",
+          "query": "how many women did frank gifford marry",
+          "retrieval_latency_ms": 43.86,
+          "context_latency_ms": 0.28,
+          "generation_latency_ms": 637.81,
+          "grounding_latency_ms": 0.42,
+          "total_latency_ms": 682.38,
+          "grounded": true,
+          "guardrail": null,
+          "answer": "फ्रैंक गिफोर्ड ने तीन शादियाँ कीं। उनकी पत्नियाँ कैथी ली गिफोर्ड, एस्ट्रिड गिफोर्ड और मैक्सिन एविस एवार्ट थीं।",
+          "confidence": 0.8941,
+          "error": null,
+          "usage": {
+            "prompt_tokens": 1200,
+            "completion_tokens": 56,
+            "total_tokens": 1256
+          }
+        },
+        {
+          "provider": "groq",
+          "model": "llama-3.1-8b-instant",
+          "query_id": "ev-03",
+          "category": "evidence_required",
+          "language": "hi",
+          "query": "सौर शहर के पैनल कितना कि.डब्ल्यू उत्पादन करते हैं",
+          "retrieval_latency_ms": 24.51,
+          "context_latency_ms": 0.2,
+          "generation_latency_ms": 653.2,
+          "grounding_latency_ms": 0.3,
+          "total_latency_ms": 678.22,
+          "grounded": true,
+          "guardrail": null,
+          "answer": "सौर शहर के पैनल कितना कि.डब्ल्यू उत्पादन करते हैं?\n\nप्रति वर्ग फुट सौर पैनल क्षेत्रफल 8 - 10 वाट का उत्पादन करेंगे।",
+          "confidence": 0.9063,
+          "error": null,
+          "usage": {
+            "prompt_tokens": 1113,
+            "completion_tokens": 62,
+            "total_tokens": 1175
+          }
+        },
+        {
+          "provider": "groq",
+          "model": "llama-3.1-8b-instant",
+          "query_id": "ev-04",
+          "category": "evidence_required",
+          "language": "hi",
+          "query": "ज़ेल्स कितने समय तक दूर रहना पड़ता है",
+          "retrieval_latency_ms": 31.17,
+          "context_latency_ms": 0.27,
+          "generation_latency_ms": 557.39,
+          "grounding_latency_ms": 0.01,
+          "total_latency_ms": 588.84,
+          "grounded": true,
+          "guardrail": null,
+          "answer": "REFUSED: ज़ेल्स के बारे में कोई जानकारी नहीं मिली।",
+          "confidence": 0.4281,
+          "error": null,
+          "usage": {
+            "prompt_tokens": 1106,
+            "completion_tokens": 26,
+            "total_tokens": 1132
+          }
+        },
+        {
+          "provider": "groq",
+          "model": "llama-3.1-8b-instant",
+          "query_id": "lr-01",
+          "category": "low_relevance",
+          "language": "en",
+          "query": "best budget mechanical keyboard switches for typing",
+          "retrieval_latency_ms": 41.79,
+          "context_latency_ms": 0.21,
+          "generation_latency_ms": 608.07,
+          "grounding_latency_ms": 0.01,
+          "total_latency_ms": 650.08,
+          "grounded": true,
+          "guardrail": null,
+          "answer": "REFUSED: कोई जानकारी नहीं है जो बजट मैकेनिकल कीबोर्ड स्विचेस के बारे में हो।",
+          "confidence": 0.4011,
+          "error": null,
+          "usage": {
+            "prompt_tokens": 1017,
+            "completion_tokens": 39,
+            "total_tokens": 1056
+          }
+        },
+        {
+          "provider": "groq",
+          "model": "llama-3.1-8b-instant",
+          "query_id": "lr-02",
+          "category": "low_relevance",
+          "language": "hi",
+          "query": "मुंबई से गोवा तक सबसे सस्ती ट्रेन कौन सी है",
+          "retrieval_latency_ms": 43.23,
+          "context_latency_ms": 0.2,
+          "generation_latency_ms": 750.07,
+          "grounding_latency_ms": 0.01,
+          "total_latency_ms": 793.52,
+          "grounded": true,
+          "guardrail": null,
+          "answer": "REFUSED: ट्रेन के बारे में कोई जानकारी नहीं है।",
+          "confidence": 0.409,
+          "error": null,
+          "usage": {
+            "prompt_tokens": 1310,
+            "completion_tokens": 24,
+            "total_tokens": 1334
+          }
+        },
+        {
+          "provider": "groq",
+          "model": "llama-3.1-8b-instant",
+          "query_id": "un-01",
+          "category": "unsupported",
+          "language": "en",
+          "query": "what will the stock price of reliance industries be next year",
+          "retrieval_latency_ms": 32.5,
+          "context_latency_ms": 0.21,
+          "generation_latency_ms": 578.17,
+          "grounding_latency_ms": 0.01,
+          "total_latency_ms": 610.9,
+          "grounded": true,
+          "guardrail": null,
+          "answer": "REFUSED: Retrieved context does not contain any information about the stock price of Reliance Industries.",
+          "confidence": 0.3917,
+          "error": null,
+          "usage": {
+            "prompt_tokens": 1328,
+            "completion_tokens": 20,
+            "total_tokens": 1348
+          }
+        },
+        {
+          "provider": "groq",
+          "model": "llama-3.1-8b-instant",
+          "query_id": "un-02",
+          "category": "unsupported",
+          "language": "hi",
+          "query": "मेरे बैंक खाते का पासवर्ड क्या है",
+          "retrieval_latency_ms": 26.24,
+          "context_latency_ms": 0.22,
+          "generation_latency_ms": 631.07,
+          "grounding_latency_ms": 0.01,
+          "total_latency_ms": 657.55,
+          "grounded": true,
+          "guardrail": null,
+          "answer": "REFUSED: आपके बैंक खाते का पासवर्ड नहीं बताया गया है।",
+          "confidence": 0.4109,
+          "error": null,
+          "usage": {
+            "prompt_tokens": 1156,
+            "completion_tokens": 27,
+            "total_tokens": 1183
+          }
+        }
+      ]
+    }
+  },
+  "documents_indexed": 800,
+  "top_k": 5,
+  "cost_evidence": {
+    "provider": "groq",
+    "model": "llama-3.1-8b-instant",
+    "free_plan_tpm_limit": 6000.0,
+    "throttle_budget_tpm": 4500.0,
+    "throttle_window_s": 60.0,
+    "observed_peak_rolling_tpm": 1183.0,
+    "total_prompt_tokens": 23939,
+    "total_completion_tokens": 2884,
+    "total_tokens": 26823,
+    "api_requests": 22,
+    "queries": 20,
+    "rate_limit_errors": 0,
+    "rate_limit_error_details": [],
+    "total_throttle_wait_s": 420.0,
+    "paid_requests": 0,
+    "billing_required": false,
+    "zero_cost_path": true,
+    "note": "Groq llama-3.1-8b-instant is a free-tier model; throttle held every 60s token window under the documented 6,000 TPM limit. Account billing status is not directly verifiable from this machine (no billing API access)."
+  }
+}
