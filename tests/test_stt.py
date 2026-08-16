@@ -193,6 +193,15 @@ def test_faster_whisper_passes_language_hint(tmp_path: Path) -> None:
     assert fake.calls[0][1]["language"] == "en"
 
 
+def test_faster_whisper_empty_language_config_means_auto_detect(tmp_path: Path) -> None:
+    """language='' from a TOML config must behave like None (auto-detect)."""
+    audio = _write_wav(tmp_path / "fw_empty.wav")
+    fake = _FakeWhisperModel(segments=[], info=_FakeInfo())
+    stt = FasterWhisperSTT(model_name="tiny", language="", model_factory=lambda: fake)
+    stt.transcribe(str(audio))
+    assert fake.calls[0][1]["language"] is None
+
+
 def test_faster_whisper_provider_failure(tmp_path: Path) -> None:
     audio = _write_wav(tmp_path / "fw_err.wav")
     fake = _FakeWhisperModel(error=RuntimeError("model exploded"))

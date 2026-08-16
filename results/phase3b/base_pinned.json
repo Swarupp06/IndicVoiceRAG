@@ -1,0 +1,36 @@
+{
+  "provider": {
+    "provider": "faster_whisper",
+    "model": "base",
+    "device": "cpu",
+    "compute_type": "int8",
+    "language": ""
+  },
+  "repeat": 3,
+  "summary": {
+    "samples": 1,
+    "with_reference": 0,
+    "wer_measured": 0,
+    "errors": 0,
+    "avg_wer": null
+  },
+  "samples": [
+    {
+      "label": "hindi",
+      "path": "tmp\\samples-hi-pinned\\hindi.wav",
+      "language_expected": "hi",
+      "has_reference": false,
+      "model_load_ms": 6308.8,
+      "detected_language": "hi",
+      "language_probability": 1.0,
+      "audio_duration_seconds": 4.133,
+      "transcription_time_ms": 1298.69,
+      "total_processing_ms": 1310.82,
+      "rtf": 0.3142,
+      "rtf_including_load": 0.3171,
+      "text": "مرچی میں کتھنے ویبیننا پر جاتیا ہے",
+      "wer": null,
+      "wer_note": "accuracy NOT MEASURED: no ground-truth transcript"
+    }
+  ]
+}

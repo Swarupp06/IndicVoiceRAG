@@ -1,0 +1,36 @@
+{
+  "provider": {
+    "provider": "faster_whisper",
+    "model": "tiny",
+    "device": "cpu",
+    "compute_type": "int8",
+    "language": ""
+  },
+  "repeat": 3,
+  "summary": {
+    "samples": 1,
+    "with_reference": 0,
+    "wer_measured": 0,
+    "errors": 0,
+    "avg_wer": null
+  },
+  "samples": [
+    {
+      "label": "hindi",
+      "path": "tmp\\samples-hi-auto\\hindi.wav",
+      "language_expected": null,
+      "has_reference": false,
+      "model_load_ms": 21309.8,
+      "detected_language": "ur",
+      "language_probability": 0.4932,
+      "audio_duration_seconds": 4.133,
+      "transcription_time_ms": 5021.33,
+      "total_processing_ms": 5034.94,
+      "rtf": 1.2148,
+      "rtf_including_load": 1.2181,
+      "text": "مرچی میں کیتنے بھی بھی بھی نا پر جاتیا ہے",
+      "wer": null,
+      "wer_note": "accuracy NOT MEASURED: no ground-truth transcript"
+    }
+  ]
+}

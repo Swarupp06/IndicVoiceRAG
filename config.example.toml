@@ -74,7 +74,7 @@ max_ungrounded_retries = 1
 #   mock             deterministic offline stub - TESTS ONLY
 [stt]
 provider = "faster_whisper"
-model_name = "tiny"           # tiny | base | small | medium | large-v3
+model_name = "small"          # Phase 3B selection: smallest model with usable Hindi; tiny/base emit wrong script
 device = "cpu"                # this machine has no GPU; keep cpu
 compute_type = "int8"         # int8 (fast CPU) | int8_float32 | float32
 language = ""                 # "" = auto-detect; set "en" / "hi" to pin

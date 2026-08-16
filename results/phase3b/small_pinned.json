@@ -1,0 +1,36 @@
+{
+  "provider": {
+    "provider": "faster_whisper",
+    "model": "small",
+    "device": "cpu",
+    "compute_type": "int8",
+    "language": ""
+  },
+  "repeat": 3,
+  "summary": {
+    "samples": 1,
+    "with_reference": 0,
+    "wer_measured": 0,
+    "errors": 0,
+    "avg_wer": null
+  },
+  "samples": [
+    {
+      "label": "hindi",
+      "path": "tmp\\samples-hi-pinned\\hindi.wav",
+      "language_expected": "hi",
+      "has_reference": false,
+      "model_load_ms": 44355.5,
+      "detected_language": "hi",
+      "language_probability": 1.0,
+      "audio_duration_seconds": 4.133,
+      "transcription_time_ms": 3910.03,
+      "total_processing_ms": 3925.63,
+      "rtf": 0.9459,
+      "rtf_including_load": 0.9497,
+      "text": "मिर्ची में कितने विबिन्ना प्रजात्या है",
+      "wer": null,
+      "wer_note": "accuracy NOT MEASURED: no ground-truth transcript"
+    }
+  ]
+}

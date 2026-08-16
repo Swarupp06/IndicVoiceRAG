@@ -269,7 +269,8 @@ class FasterWhisperSTT(STTProvider):
         except AudioError as exc:
             raise STTAudioError(str(exc)) from exc
         model = self._ensure_model()
-        requested_language = language or self._language
+        # empty-string config values ("") mean auto-detect, exactly like None
+        requested_language = language or self._language or None
         started = time.perf_counter()
         try:
             segments, segment_info = model.transcribe(

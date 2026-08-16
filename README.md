@@ -689,7 +689,7 @@ Full report incl. transcripts: `results/stt_benchmark.json`.
 ```toml
 [stt]
 provider = "faster_whisper"   # faster_whisper | mock (mock = tests only)
-model_name = "tiny"           # tiny | base | small | medium | large-v3
+model_name = "small"          # Phase 3B selection: tiny | base | small | medium | large-v3
 device = "cpu"                # this machine has no GPU
 compute_type = "int8"         # int8 (fast CPU) | int8_float32 | int8_float16 | int16 | float32
 language = ""                 # "" = auto-detect; "en" / "hi" to pin
@@ -697,3 +697,125 @@ download_root = ".cache/stt"  # model cache (gitignored)
 beam_size = 5
 vad_filter = false
 ```
+
+---
+
+# Phase 3B - Hindi STT model benchmark
+
+Phase 3B answers one question: **which local faster-whisper model is the best
+practical choice for Hindi on this CPU-only machine?** The current default was
+changed from `tiny` to `small` as a result. The Phase 3A pipeline itself was
+not rebuilt.
+
+## Method
+
+- Same single Hindi sample (`samples/hindi.wav`, 4.13 s, from
+  `Narsil/asr_dummy`) for every model, `compute_type=int8`, `beam_size=5`, CPU.
+- Each model run twice: **(A)** automatic language detection and **(B)**
+  explicitly pinned `language="hi"`.
+- Steady-state timing: model load (one-time) measured separately from warm
+  transcription (median of 5 repeated runs).
+- On-disk sizes measured from the cached CTranslate2 int8 models.
+
+## Results
+
+### Automatic language detection (A)
+
+| model | detected lang | script | transcription |
+|---|---|---|---|
+| `tiny` | **ur (wrong)** | Arabic/Urdu | `مرچی میں کیتنے بھی بھی بھی نا پر جاتیا ہے` (repeated `بھی`) |
+| `base` | hi (correct) | Arabic/Urdu | `مرچی میں کتھنے ویبیننا پر جاتیا ہے` |
+| `small` | hi (correct) | **Devanagari** | `मिर्ची में कितने विबिन्ना प्रजात्या है` |
+
+### Pinned `language="hi"` (B)
+
+| model | detected lang | script | transcription |
+|---|---|---|---|
+| `tiny` | hi | **Latin** (transliteration) | `Mirchi mein, ki tene vibinda prajatiya hai.` |
+| `base` | hi | Arabic/Urdu | `مرچی میں کتھنے ویبیننا پر جاتیا ہے` (same as auto) |
+| `small` | hi | **Devanagari** | `मिर्ची में कितने विबिन्ना प्रजात्या है` (same as auto) |
+
+### Latency (pinned `hi`, warm, median of 5; `results/phase3b/steady_state_timing.json`)
+
+| model | int8 size | model load | first call total | warm transcription | RTF (warm) |
+|---|---|---|---|---|---|
+| `tiny` | 72 MB | 5.2 s | 7.6 s | 2.28 s | 0.55 |
+| `base` | 138 MB | 0.85 s | 2.0 s | 1.15 s | 0.28 |
+| `small` | 461 MB | 11.1 s | 15.4 s | 3.98 s | 0.96 |
+
+RTF = transcription time / audio duration; RTF < 1 means faster than real time.
+Model load is a one-time cost (cached model); it is reported separately and is
+never part of per-request transcription latency. This 2-vCPU box is noisy, so
+single-shot RTF for `small` was also observed at ~1.1 in a loaded `transcribe-rag`
+run.
+
+### Qualitative Hindi comparison (no ground truth, so no WER numbers)
+
+No trustworthy Hindi ground-truth transcript exists for this clip, so **Hindi
+WER = NOT MEASURED** (not fabricated). Qualitative reading of the outputs:
+
+- **Wrong script is the killer for `tiny`/`base`:** pinned `tiny` emits Latin
+  transliteration, and `base` emits Arabic/Urdu script, so the text is not even
+  indexable by the Hindi RAG stack. Only `small` emits Devanagari.
+- **Missing/substituted words:** `tiny` auto repeats `بھی بھی بھی` and pinned
+  produces `ki tene vibinda` (near-gibberish); `base` produces `ویبیننا پر
+  جاتیا` (unintelligible). `small` is a complete, grammatical sentence
+  `मिर्ची में कितने विबिन्ना प्रजात्या है` with spelling errors
+  (`विबिन्ना` for `विभिन्न`, `प्रजात्या` for `प्रजातियाँ`).
+- **Names/numbers:** no numerals in the clip; `small` handles the word-final
+  `है` correctly.
+- **Sentence completeness:** `small` output is complete and coherent; `tiny`/
+  `base` are partial/garbled.
+
+### Language-pinning tradeoff (documented)
+
+Pinning `language="hi"` **prevents the `tiny` misdetection** (`ur` -> `hi`) and
+stops the `بھی` repetition, but it does **not** rescue `tiny`/`base` word errors
+or force Devanagari (tiny pinned degrades to Latin transliteration; base stays
+Arabic-script). `small` is unaffected by pinning (auto-detects `hi` correctly
+and already emits Devanagari). **Conclusion: pinning is a cheap safety net but
+not a substitute for model quality.**
+
+## Selection (quality gate)
+
+| model | Hindi quality | RTF (warm) | CPU/RAM practicality | size | Selected? |
+|---|---|---|---|---|---|
+| `tiny` | unusable (wrong script, garbled) | 0.55 | excellent | 72 MB | no |
+| `base` | unusable (Arabic script, garbled) | 0.28 | excellent | 138 MB | no |
+| `small` | usable Devanagari, minor spelling errors | 0.96 | OK (fits 7.4 GB RAM; at the real-time edge) | 461 MB | **YES** |
+
+**Selected: `small` (faster-whisper `small`, CPU int8).** It is the only
+candidate that produces indexable Hindi text. The trade-off is explicit: it is
+~4x the size of `base` and sits right at RTF ~1 on this 2-vCPU machine (a 4 s
+clip ~ 4 s to transcribe when warm). `base` would be the latency pick if the
+voice assistant were English-only or if a lighter Hindi path is ever needed,
+but its Hindi output is unusable. Selection was made on the full quality gate
+(quality + RTF + practicality + size), not accuracy alone.
+
+## RAG regression
+
+Hindi audio -> STT (`small`) -> text -> existing `e5-small` -> FAISS (124
+Hindi docs) -> LLM -> grounding -> guardrails -> answer. Pipeline code was not
+changed.
+
+- **Groq was NOT exercised** - no `GROQ_API_KEY` and no local Ollama were
+  available in this session, so the regression ran the *unchanged* pipeline with
+  the configured `mock` generator (the provider layer is already covered by
+  offline tests, including Groq's mocked HTTP path).
+- Output (full: `results/phase3b/rag_regression_small.json`): query
+  `मिर्ची में कितने विबिन्ना प्रजात्या है`, retrieval 2.5 s (incl. first-run
+  embedder), mock-grounded answer on low-relevance passages. The imperfect
+  transcription (misspelled `विबिन्ना`/`प्रजात्या`) retrieves off-topic gaming
+  passages - a concrete demonstration that **STT quality propagates straight
+  into RAG retrieval quality**, and exactly why `small` was selected.
+- The full audio->RAG chain is confirmed working end to end.
+
+## Remaining limitations
+
+- Hindi WER is **NOT MEASURED** (no trustworthy Hindi test set available; not
+  downloading a large dataset for this benchmark).
+- `small` RTF ~1 on this machine: borderline for real-time; a quieter/stronger
+  CPU or a GPU would give headroom. Consider `vad_filter` or lower `beam_size`.
+- Only one Hindi audio clip was available; statistical quality claims would need
+  a proper Hindi eval set.
+- Microphone / TTS / frontend / deployment remain out of scope (as before).

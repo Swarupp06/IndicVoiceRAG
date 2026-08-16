@@ -1,0 +1,39 @@
+{
+  "audio": "E:\\IndicVoiceRAG\\IndicVoiceRAG\\samples\\hindi.wav",
+  "duration_seconds": 4.133,
+  "models": {
+    "tiny": {
+      "model_load_ms": 5190.6,
+      "first_call_total_ms": 7604.1,
+      "warm_median_wall_ms": 2276.9,
+      "warm_median_proc_ms": 2264.2,
+      "rtf_warm": 0.551,
+      "rtf_warm_proc": 0.548,
+      "detected_language": "hi",
+      "language_probability": 1.0,
+      "text": "Mirchi mein, ki tene vibinda prajatiya hai."
+    },
+    "base": {
+      "model_load_ms": 854.3,
+      "first_call_total_ms": 2021.8,
+      "warm_median_wall_ms": 1148.7,
+      "warm_median_proc_ms": 1138.1,
+      "rtf_warm": 0.278,
+      "rtf_warm_proc": 0.275,
+      "detected_language": "hi",
+      "language_probability": 1.0,
+      "text": "مرچی میں کتھنے ویبیننا پر جاتیا ہے"
+    },
+    "small": {
+      "model_load_ms": 11111.5,
+      "first_call_total_ms": 15373.5,
+      "warm_median_wall_ms": 3977.3,
+      "warm_median_proc_ms": 3963.8,
+      "rtf_warm": 0.962,
+      "rtf_warm_proc": 0.959,
+      "detected_language": "hi",
+      "language_probability": 1.0,
+      "text": "मिर्ची में कितने विबिन्ना प्रजात्या है"
+    }
+  }
+}

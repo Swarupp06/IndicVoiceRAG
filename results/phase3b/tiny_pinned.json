@@ -1,0 +1,36 @@
+{
+  "provider": {
+    "provider": "faster_whisper",
+    "model": "tiny",
+    "device": "cpu",
+    "compute_type": "int8",
+    "language": ""
+  },
+  "repeat": 3,
+  "summary": {
+    "samples": 1,
+    "with_reference": 0,
+    "wer_measured": 0,
+    "errors": 0,
+    "avg_wer": null
+  },
+  "samples": [
+    {
+      "label": "hindi",
+      "path": "tmp\\samples-hi-pinned\\hindi.wav",
+      "language_expected": "hi",
+      "has_reference": false,
+      "model_load_ms": 4545.9,
+      "detected_language": "hi",
+      "language_probability": 1.0,
+      "audio_duration_seconds": 4.133,
+      "transcription_time_ms": 2241.63,
+      "total_processing_ms": 2252.93,
+      "rtf": 0.5423,
+      "rtf_including_load": 0.545,
+      "text": "Mirchi mein, ki tene vibinda prajatiya hai.",
+      "wer": null,
+      "wer_note": "accuracy NOT MEASURED: no ground-truth transcript"
+    }
+  ]
+}

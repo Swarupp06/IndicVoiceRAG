@@ -87,7 +87,9 @@ class GuardrailConfig:
 class STTConfig:
     # mock | faster_whisper
     provider: str = "faster_whisper"
-    model_name: str = "tiny"  # tiny | base | small | medium | large-v3 (local, no cloud cost)
+    # Phase 3B selection: 'small' is the smallest model that produces usable
+    # Devanagari Hindi (tiny/base emit Latin/Arabic script and garbled words).
+    model_name: str = "small"  # tiny | base | small | medium | large-v3 (local, no cloud cost)
     device: str = "cpu"  # this project has no GPU; keep CPU
     compute_type: str = "int8"  # int8 | int8_float32 | int8_float16 | int16 | float32
     language: str | None = None  # e.g. "en", "hi"; None = auto-detect
