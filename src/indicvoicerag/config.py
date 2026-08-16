@@ -99,6 +99,15 @@ class STTConfig:
 
 
 @dataclass(slots=True)
+class AudioConfig:
+    """Microphone capture defaults (Phase 3C)."""
+
+    sample_rate: int = 16000
+    channels: int = 1
+    duration_seconds: float = 5.0
+
+
+@dataclass(slots=True)
 class AppConfig:
     dataset: DatasetConfig = field(default_factory=DatasetConfig)
     chunking: ChunkingConfig = field(default_factory=ChunkingConfig)
@@ -108,6 +117,7 @@ class AppConfig:
     llm: LLMConfig = field(default_factory=LLMConfig)
     guardrails: GuardrailConfig = field(default_factory=GuardrailConfig)
     stt: STTConfig = field(default_factory=STTConfig)
+    audio: AudioConfig = field(default_factory=AudioConfig)
 
 
 def _merge_into_dataclass(instance: Any, payload: dict[str, Any]) -> None:

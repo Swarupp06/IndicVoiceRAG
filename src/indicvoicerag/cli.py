@@ -3,11 +3,14 @@ from __future__ import annotations
 import argparse
 from dataclasses import asdict, replace
 import json
+import os
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
 
+from .audio_capture import MicrophoneError, MicrophoneRecorder, write_pcm_wav
 from .benchmark import (
     benchmark_report,
     load_benchmark_queries,
@@ -26,7 +29,7 @@ from .pipeline import build_harness, build_llm_from_config, build_retrieval_engi
 from .rag_evaluate import build_sample_cases, evaluate_rag
 from .retrieval import RetrievalEngine
 from .speech import answer_from_audio
-from .stt import normalize_stt_provider_name
+from .stt import STTError, build_stt_provider, normalize_stt_provider_name
 from .stt_benchmark import STTSample, load_samples, run_stt_benchmark
 from .vector_store import build_vector_store
 
@@ -127,6 +130,23 @@ def _build_parser() -> argparse.ArgumentParser:
     benchmark_stt.add_argument("--repeat", type=int, default=1, help="Per-sample runs; the fastest is reported")
     benchmark_stt.add_argument("--out", default=None, help="Write the full JSON report to this path")
     benchmark_stt.add_argument("--json", action="store_true", help="Print raw JSON instead of a table")
+
+    listen = sub.add_parser(
+        "listen",
+        help="Record from the microphone, transcribe locally, answer via the existing RAGHarness (Phase 3C)",
+    )
+    listen.add_argument("--duration", type=float, default=None, help="Recording duration in seconds (default: config.audio.duration_seconds = 5.0)")
+    listen.add_argument("--sample-rate", type=int, default=None, help="Capture sample rate (default: config.audio.sample_rate = 16000)")
+    listen.add_argument("--channels", type=int, default=None, help="Capture channels (default: config.audio.channels = 1)")
+    listen.add_argument("--language", default=None, help="STT language hint (e.g. hi, en); default from config, empty = auto-detect")
+    listen.add_argument("--model", default=None, help="Override stt.model_name (e.g. small); does not change the config")
+    listen.add_argument("--device", type=int, default=None, help="sounddevice input device index (default: system default)")
+    listen.add_argument("--top-k", type=int, default=None, help="RAG top-k (default: config.retrieval.top_k)")
+    listen.add_argument("--size", type=int, default=None, help="Sample size when building a fresh RAG index (ignored with --load-index)")
+    listen.add_argument("--load-index", action="store_true", help="Load the persisted vector index instead of re-indexing")
+    listen.add_argument("--no-rag", action="store_true", help="Transcribe only; skip the RAG answer")
+    listen.add_argument("--debug", action="store_true", help="Keep the temporary WAV and print per-stage latency")
+    listen.add_argument("--json", action="store_true", help="Print raw JSON instead of a table")
     return parser
 
 
@@ -686,6 +706,183 @@ def run_stt_benchmark_cli(
         print("\nWER is only reported when a ground-truth reference exists (samples/<name>.txt sidecar or --ground-truth).")
 
 
+def _build_stt_for_listen(config: AppConfig, model: str | None) -> Any:
+    """Build the configured STT provider, honoring an optional model override."""
+    if model:
+        return build_stt_provider(
+            provider=config.stt.provider,
+            model_name=model,
+            device=config.stt.device,
+            compute_type=config.stt.compute_type,
+            language=config.stt.language or None,
+            beam_size=config.stt.beam_size,
+            vad_filter=config.stt.vad_filter,
+            download_root=config.stt.download_root,
+        )
+    return build_stt_from_config(config)
+
+
+def run_listen(
+    config: AppConfig,
+    *,
+    duration: float | None = None,
+    sample_rate: int | None = None,
+    channels: int | None = None,
+    language: str | None = None,
+    model: str | None = None,
+    top_k: int | None = None,
+    size: int | None = None,
+    load_index: bool = False,
+    device: int | None = None,
+    debug: bool = False,
+    as_json: bool = False,
+    no_rag: bool = False,
+    recorder: MicrophoneRecorder | None = None,
+    harness: Any | None = None,
+) -> int:
+    """MICROPHONE -> WAV -> local STT -> text -> existing RAGHarness.
+
+    Returns a process exit code (0 ok, 1 controlled failure) so normal CLI use
+    never prints an opaque traceback. Recording time is reported but never
+    counted as system processing latency.
+    """
+    stt = _build_stt_for_listen(config, model)
+    if normalize_stt_provider_name(config.stt.provider) == "mock":
+        print(
+            "WARNING: stt.provider='mock' is a deterministic test stub. "
+            "Use stt.provider='faster_whisper' for a real transcription.",
+            file=sys.stderr,
+        )
+
+    rec = recorder or MicrophoneRecorder(
+        sample_rate=sample_rate or config.audio.sample_rate,
+        channels=channels or config.audio.channels,
+        duration_seconds=duration or config.audio.duration_seconds,
+        device=device,
+    )
+
+    try:
+        print("Press Enter to start recording...", end="", flush=True, file=sys.stderr)
+        input()
+        print(f"Recording for {rec.duration_seconds:.1f} s - speak now.", file=sys.stderr)
+    except KeyboardInterrupt:
+        print("\nRecording cancelled.", file=sys.stderr)
+        return 1
+    except EOFError:
+        # non-interactive stdin (e.g. piped input): start recording immediately
+        print(f"\nRecording for {rec.duration_seconds:.1f} s - speak now.", file=sys.stderr)
+
+    try:
+        capture = rec.record()
+    except MicrophoneError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+    except KeyboardInterrupt:
+        print("\nRecording cancelled.", file=sys.stderr)
+        return 1
+    recording_duration = capture.duration_seconds
+
+    t0 = time.perf_counter()
+    fd, tmp_name = tempfile.mkstemp(suffix=".wav", prefix="ivr_listen_")
+    os.close(fd)
+    tmp_path = Path(tmp_name)
+    write_pcm_wav(tmp_path, capture.samples, capture.sample_rate)
+    prep_ms = (time.perf_counter() - t0) * 1000.0
+
+    try:
+        if no_rag:
+            transcription = stt.transcribe(str(tmp_path), language=language)
+            rag_response = None
+        else:
+            active_harness = harness
+            if active_harness is None:
+                inspector = DatasetInspector(config.dataset)
+                engine = build_retrieval_engine(config)
+                if load_index:
+                    engine.store.load()
+                else:
+                    docs = inspector.normalized_sample(size)
+                    engine.index_documents(docs)
+                active_harness = build_harness(config, engine.query)
+            transcription, rag_response = answer_from_audio(
+                stt, active_harness, str(tmp_path), language=language, top_k=top_k, debug=True
+            )
+    except STTError as exc:
+        if not debug:
+            tmp_path.unlink(missing_ok=True)
+        print(f"ERROR: speech-to-text failed: {exc}", file=sys.stderr)
+        return 1
+    except KeyboardInterrupt:
+        if not debug:
+            tmp_path.unlink(missing_ok=True)
+        print("\nInterrupted.", file=sys.stderr)
+        return 1
+    except Exception as exc:  # noqa: BLE001 - controlled CLI errors, no tracebacks
+        if not debug:
+            tmp_path.unlink(missing_ok=True)
+        print(f"ERROR: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 1
+
+    rag_metrics = (rag_response.metrics if rag_response is not None else None) or {}
+    rag_total_ms = float(rag_metrics.get("total", 0.0) or 0.0)
+    stt_ms = float(transcription.processing_time_ms or 0.0)
+    total_post_ms = prep_ms + stt_ms + rag_total_ms
+
+    if as_json:
+        payload: dict[str, Any] = {
+            "language": transcription.language,
+            "language_probability": round(transcription.language_probability, 4),
+            "transcription": transcription.text,
+            "recording_duration_seconds": round(recording_duration, 3),
+            "stt": {
+                "model": transcription.model,
+                "processing_ms": round(stt_ms, 1),
+                "rtf": round(transcription.rtf, 4),
+                "model_load_ms": round(transcription.load_time_ms or 0.0, 1),
+            },
+            "audio_prep_ms": round(prep_ms, 1),
+            "rag": rag_response.as_dict(include_metrics=True) if rag_response is not None else None,
+            "rag_total_ms": round(rag_total_ms, 1),
+            "total_post_recording_ms": round(total_post_ms, 1),
+            "temp_wav": str(tmp_path) if debug else None,
+        }
+        _print_json(payload)
+    else:
+        print(f"Detected language: {transcription.language or 'N/A'} (p={transcription.language_probability:.3f})")
+        print(f"Transcription: {transcription.text}")
+        if rag_response is not None:
+            print(f"RAG answer: {rag_response.answer}")
+            print(f"Grounded: {rag_response.grounded} (confidence={rag_response.confidence:.4f})")
+            if rag_response.guardrail:
+                print(f"Guardrail: {rag_response.guardrail}")
+            if rag_response.sources:
+                print("Sources:")
+                for source in rag_response.sources:
+                    excerpt = source.excerpt.strip().replace("\n", " ")
+                    print(f"  - {source.document_id} (score {source.score:.4f}) {excerpt[:100]}")
+        print("Latency:")
+        print(f"  recording duration      : {recording_duration:.3f} s   (speaking time, NOT system processing)")
+        print(f"  audio prep (write WAV)  : {prep_ms:.1f} ms")
+        print(f"  STT processing          : {stt_ms:.1f} ms")
+        print(f"  STT RTF                 : {transcription.rtf:.3f}")
+        print(f"  STT model load          : {transcription.load_time_ms or 0.0:.1f} ms   (one-time)")
+        if rag_response is not None:
+            print(f"  RAG retrieval           : {rag_metrics.get('retrieval', 0.0):.1f} ms")
+            print(f"  RAG context             : {rag_metrics.get('context', 0.0):.1f} ms")
+            print(f"  RAG generation          : {rag_metrics.get('generation', 0.0):.1f} ms")
+            print(f"  RAG grounding           : {rag_metrics.get('grounding', 0.0):.1f} ms")
+        print(f"  total post-recording    : {total_post_ms:.1f} ms")
+
+    if debug:
+        print(f"temp wav kept: {tmp_path}", file=sys.stderr)
+    else:
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+    return 0
+
+
 def main() -> None:
     try:
         sys.stdout.reconfigure(encoding="utf-8")
@@ -767,6 +964,24 @@ def main() -> None:
             repeat=args.repeat,
             out=args.out,
             as_json=args.json,
+        )
+    elif args.command == "listen":
+        sys.exit(
+            run_listen(
+                config,
+                duration=args.duration,
+                sample_rate=args.sample_rate,
+                channels=args.channels,
+                language=args.language,
+                model=args.model,
+                top_k=args.top_k,
+                size=args.size,
+                load_index=args.load_index,
+                device=args.device,
+                debug=args.debug,
+                as_json=args.json,
+                no_rag=args.no_rag,
+            )
         )
     else:
         raise ValueError(f"Unsupported command: {args.command}")

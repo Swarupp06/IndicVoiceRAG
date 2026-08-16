@@ -100,7 +100,7 @@ Backend foundation for HH Goa 2026 Task 2:
 
 ```text
 src/indicvoicerag/
-  cli.py            # CLI entrypoint (inspect/sample/build/retrieve/evaluate/smoke/rag/rag-evaluate/transcribe/transcribe-rag/benchmark-stt)
+  cli.py            # CLI entrypoint (inspect/sample/build/retrieve/evaluate/smoke/rag/rag-evaluate/transcribe/transcribe-rag/benchmark-stt/listen)
   config.py         # central TOML config schema + loader
   dataset.py        # hub inspector + download-first real parquet access + cache
   schemas.py        # normalized document schema + real-record flattening
@@ -125,6 +125,7 @@ src/indicvoicerag/
   wer.py            # dependency-free WER (Devanagari-aware) (Phase 3A)
   stt_benchmark.py  # reproducible RTF/WER benchmark (Phase 3A)
   speech.py         # audio -> STT -> text -> RAGHarness glue (Phase 3A)
+  audio_capture.py  # microphone recording -> mono 16 kHz PCM (Phase 3C)
 benchmarks/
   queries.json      # fixed 20-query provider benchmark set
   results/          # benchmark JSON + CSV reports
@@ -635,9 +636,19 @@ harness.
 
 # benchmark all samples in samples/ (uses *.txt sidecars for ground truth)
 .venv\Scripts\python.exe -m indicvoicerag.cli benchmark-stt --samples-dir samples --repeat 2 --out results/stt_benchmark.json
+
+# Phase 3C: record from the microphone, transcribe, then run the full RAG pipeline
+.venv\Scripts\python.exe -m indicvoicerag.cli listen --language hi            # push-to-talk, fixed window
+.venv\Scripts\python.exe -m indicvoicerag.cli listen --duration 8 --no-rag    # STT only, 8 s window
+.venv\Scripts\python.exe -m indicvoicerag.cli listen --json --debug           # machine-readable + keep temp WAV
 ```
 
-`transcribe --json`, `--language`, and `benchmark-stt --audio/--label/--ground-truth/--language/--no-warmup/--json` are also supported.
+`transcribe --json`, `--language`, `benchmark-stt --audio/--label/--ground-truth/--language/--no-warmup/--json`, and `listen --duration/--sample-rate/--channels/--language/--model/--top-k/--size/--load-index/--device/--no-rag/--json/--debug` are also supported.
+
+> `listen` requires the `mic` extra: `pip install -e .[mic]` (installs `sounddevice`,
+> which bundles PortAudio on Windows). Press Enter to start the fixed-duration
+> recording; with piped/closed stdin the recording starts immediately. In `--json`
+> mode stdout is pure JSON; progress chatter goes to stderr.
 
 ## Samples
 
@@ -696,6 +707,11 @@ language = ""                 # "" = auto-detect; "en" / "hi" to pin
 download_root = ".cache/stt"  # model cache (gitignored)
 beam_size = 5
 vad_filter = false
+
+[audio]                        # Phase 3C: microphone capture defaults
+sample_rate = 16000            # captured PCM is resampled to mono 16 kHz
+channels = 1
+duration_seconds = 5.0         # fixed recording window per `listen` invocation
 ```
 
 ---
@@ -818,4 +834,74 @@ changed.
   CPU or a GPU would give headroom. Consider `vad_filter` or lower `beam_size`.
 - Only one Hindi audio clip was available; statistical quality claims would need
   a proper Hindi eval set.
-- Microphone / TTS / frontend / deployment remain out of scope (as before).
+- Microphone is addressed in Phase 3C (below); TTS / frontend / deployment
+  remain out of scope.
+
+---
+
+# Phase 3C - Microphone input pipeline
+
+Phase 3C adds a **live microphone front-end** in front of the unchanged
+Phase 3A/B pipeline: `MicrophoneRecorder` -> temp WAV -> `small` STT -> text ->
+existing `RAGHarness`. No STT/RAG pipeline code was rebuilt; no TTS, frontend or
+continuous (always-on) listening was added.
+
+## Design
+
+```text
+MicrophoneRecorder (sounddevice / PortAudio, fixed-duration, push-to-talk)
+        |
+        v  AudioCaptureResult (mono float32, 16 kHz; resampled from device rate)
+        |
+        v  temp WAV (stdlib wave, int16)  -- deleted after the run unless --debug
+        |
+        v
+STTProvider (unchanged; default faster-whisper small)
+        |
+        v
+RAGHarness.answer(query=<transcribed text>)   (unchanged text path)
+```
+
+- **`src/indicvoicerag/audio_capture.py`** knows nothing about STT/RAG. It maps
+  PortAudio errors to controlled `MicrophoneError` subclasses
+  (`MicrophoneUnavailableError` / `MicrophonePermissionError` /
+  `MicrophoneRecordingError`), resamples any device rate to mono 16 kHz (PyAV,
+  pure-numpy fallback), and always returns float32 mono PCM.
+- **Injection point**: `MicrophoneRecorder(record_fn=...)` lets tests run the
+  whole `listen` path with a fake backend - no hardware in the test suite.
+- **`listen` CLI**: records a fixed window (Enter to start; piped/closed stdin
+  starts immediately), reports recording time separately from system latency,
+  and prints a per-stage breakdown (audio prep / STT / RTF / model load / RAG
+  retrieval / context / generation / grounding / total post-recording). Temp WAV
+  is deleted unless `--debug`.
+- **`--no-rag`** stops after transcription; **`--json`** emits one JSON document
+  on stdout (progress goes to stderr) so it can be consumed by a frontend later.
+- New optional extra: `pip install -e .[mic]` (`sounddevice`). No cloud cost.
+
+## Smoke test (real hardware, this machine)
+
+Live microphone capture on `Microphone Array (Realtek(R) Audio)`:
+
+| run | recording | prep (write WAV) | STT | RTF (warm) | outcome |
+|---|---|---|---|---|---|
+| `tiny`, no-RAG | 2.000 s | 2.6 ms | 1147 ms | 0.574 | transcribed ambient speech `Let's go.` (auto-detected `en`) |
+| `tiny`, full RAG | 2.000 s | 2.6 ms | 971 ms | 0.485 | empty transcription -> `invalid_input` guardrail (graceful) |
+| `small`, no-RAG | 3.000 s | — | 108.7 s cold | 25.8 (cold, near-silence) | empty text (no speech captured) |
+
+The microphone capture -> WAV -> STT -> harness path works end to end. Empty or
+near-silent audio yields an empty transcription, which the existing guardrails
+reject as `invalid_input` instead of crashing. Cold `small` on near-silent input
+was far slower than the Phase 3B warm RTF (~1) - silence/empty-clip processing
+and cold start dominate; warm speech at `small` still matches the Phase 3B
+characterization.
+
+## Test coverage (offline, no hardware)
+
+- `tests/test_audio_capture.py` - recording success (mono/stereo downmix),
+  resample correctness, empty-capture error, backend failure wrapping, and the
+  WAV write->read round trip via the `wave`/PyAV path.
+- `tests/test_listen_cli.py` - the full `listen` control flow with fake
+  recorder/STT/harness: success, `--no-rag`, `--json`, temp-WAV cleanup,
+  `--debug` keep, no-microphone / empty-capture / STT-failure controlled
+  errors, cancel before recording, and non-interactive stdin.
+

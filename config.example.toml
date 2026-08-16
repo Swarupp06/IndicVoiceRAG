@@ -81,3 +81,9 @@ language = ""                 # "" = auto-detect; set "en" / "hi" to pin
 download_root = ".cache/stt"  # model cache dir (gitignored)
 beam_size = 5
 vad_filter = false            # Silero VAD pre-filtering (off by default)
+
+# --- Phase 3C: microphone capture (push-to-talk, fixed duration) ---
+[audio]
+sample_rate = 16000           # captured PCM is resampled to 16 kHz mono
+channels = 1
+duration_seconds = 5.0        # fixed recording window per 'listen' invocation
