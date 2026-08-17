@@ -18,7 +18,10 @@ htmlcov/
 
 # Hugging Face and dataset artifacts
 .cache/
-data/
+data/*
+!data/goa_pilot/
+data/goa_pilot/raw/
+data/goa_pilot/normalized/*.meta.json
 datasets/
 hf_datasets/
 

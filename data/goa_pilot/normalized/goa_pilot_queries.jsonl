@@ -1,0 +1,20 @@
+{"query_id": "q_en_001", "query_text": "What is the capital of Goa?", "language": "en", "category": "geography", "document_id": "goa_overview_001", "relevance": 1.0, "access_date": "2026-08-17"}
+{"query_id": "q_en_002", "query_text": "Which UNESCO World Heritage Site is in Goa?", "language": "en", "category": "heritage", "document_id": "goa_unesco_churches_001", "relevance": 1.0, "access_date": "2026-08-17"}
+{"query_id": "q_en_002", "query_text": "Which UNESCO World Heritage Site is in Goa?", "language": "en", "category": "heritage", "document_id": "goa_bom_jesus_001", "relevance": 1.0, "access_date": "2026-08-17"}
+{"query_id": "q_en_003", "query_text": "What are the best beaches to visit in Goa?", "language": "en", "category": "tourism", "document_id": "goa_beaches_001", "relevance": 1.0, "access_date": "2026-08-17"}
+{"query_id": "q_en_004", "query_text": "What is Goan food like?", "language": "en", "category": "culture", "document_id": "goa_cuisine_001", "relevance": 1.0, "access_date": "2026-08-17"}
+{"query_id": "q_en_005", "query_text": "How long did the Portuguese rule Goa?", "language": "en", "category": "history", "document_id": "goa_history_001", "relevance": 1.0, "access_date": "2026-08-17"}
+{"query_id": "q_en_006", "query_text": "What wildlife sanctuaries are in Goa?", "language": "en", "category": "geography", "document_id": "goa_wildlife_001", "relevance": 1.0, "access_date": "2026-08-17"}
+{"query_id": "q_en_007", "query_text": "What is Tiatr theatre in Goa?", "language": "en", "category": "culture", "document_id": "goa_theatre_001", "relevance": 1.0, "access_date": "2026-08-17"}
+{"query_id": "q_en_008", "query_text": "What are the major rivers of Goa?", "language": "en", "category": "geography", "document_id": "goa_biodiversity_001", "relevance": 1.0, "access_date": "2026-08-17"}
+{"query_id": "q_en_009", "query_text": "What is feni and how is it made?", "language": "en", "category": "culture", "document_id": "goa_cuisine_001", "relevance": 1.0, "access_date": "2026-08-17"}
+{"query_id": "q_en_010", "query_text": "What museums can I visit in Goa?", "language": "en", "category": "tourism", "document_id": "goa_museums_001", "relevance": 1.0, "access_date": "2026-08-17"}
+{"query_id": "q_hi_001", "query_text": "गोवा की राजधानी क्या है?", "language": "hi", "category": "geography", "document_id": "goa_overview_001", "relevance": 1.0, "access_date": "2026-08-17"}
+{"query_id": "q_hi_002", "query_text": "गोवा में कौन सी यूनेस्को विश्व धरोहर स्थल है?", "language": "hi", "category": "heritage", "document_id": "goa_unesco_churches_001", "relevance": 1.0, "access_date": "2026-08-17"}
+{"query_id": "q_hi_002", "query_text": "गोवा में कौन सी यूनेस्को विश्व धरोहर स्थल है?", "language": "hi", "category": "heritage", "document_id": "goa_bom_jesus_001", "relevance": 1.0, "access_date": "2026-08-17"}
+{"query_id": "q_hi_003", "query_text": "गोवा की सबसे अच्छी बीच कौन सी हैं?", "language": "hi", "category": "tourism", "document_id": "goa_beaches_001", "relevance": 1.0, "access_date": "2026-08-17"}
+{"query_id": "q_hi_004", "query_text": "गोवाई खाना कैसा होता है?", "language": "hi", "category": "culture", "document_id": "goa_cuisine_001", "relevance": 1.0, "access_date": "2026-08-17"}
+{"query_id": "q_hi_005", "query_text": "पुर्तगालियों ने गोवा पर कितने साल राज किया?", "language": "hi", "category": "history", "document_id": "goa_history_001", "relevance": 1.0, "access_date": "2026-08-17"}
+{"query_id": "q_hi_006", "query_text": "गोवा में कौन से नृत्य और संगीत के पारंपरिक रूप हैं?", "language": "hi", "category": "culture", "document_id": "goa_culture_dance_001", "relevance": 1.0, "access_date": "2026-08-17"}
+{"query_id": "q_hi_007", "query_text": "गोवा में कौन से किले हैं?", "language": "hi", "category": "heritage", "document_id": "goa_heritage_sites_001", "relevance": 1.0, "access_date": "2026-08-17"}
+{"query_id": "q_hi_008", "query_text": "गोवा का मानसून कैसा होता है?", "language": "hi", "category": "geography", "document_id": "goa_geography_001", "relevance": 1.0, "access_date": "2026-08-17"}

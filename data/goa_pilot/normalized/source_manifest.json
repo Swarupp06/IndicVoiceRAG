@@ -1,0 +1,46 @@
+{
+  "corpus_name": "goa_pilot",
+  "version": "1.0.0",
+  "access_date": "2026-08-17",
+  "document_count": 15,
+  "sources_used": [
+    {
+      "url": "https://en.wikipedia.org/wiki/Goa",
+      "publisher": "Wikipedia / Wikimedia Foundation",
+      "license": "CC BY-SA 4.0",
+      "fetched": true
+    },
+    {
+      "url": "https://whc.unesco.org/en/list/234",
+      "publisher": "UNESCO World Heritage Centre",
+      "license": "CC BY-SA IGO 3.0",
+      "fetched": true
+    },
+    {
+      "url": "https://www.goa.gov.in/know-goa/about-goa-state/",
+      "publisher": "Government of Goa",
+      "fetched": true,
+      "note": "Navigation-heavy; used for validation only"
+    },
+    {
+      "url": "https://goatourism.gov.in/",
+      "publisher": "Goa Tourism",
+      "fetched": true,
+      "note": "Navigation-heavy; used for validation only"
+    },
+    {
+      "url": "https://artandculture.goa.gov.in/",
+      "publisher": "Directorate of Art and Culture, Government of Goa",
+      "fetched": true,
+      "note": "JS-rendered; sub-pages not extractable via web fetch"
+    }
+  ],
+  "categories": {
+    "tourism": 3,
+    "heritage": 3,
+    "history": 1,
+    "culture": 3,
+    "geography": 4,
+    "visitor_information": 1
+  }
+}
