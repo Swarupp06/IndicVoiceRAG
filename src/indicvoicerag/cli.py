@@ -162,6 +162,24 @@ def _build_parser() -> argparse.ArgumentParser:
     synth.add_argument("--language", default=None, help="Language code (e.g. hi, bn, ta); default from config.tts.language")
     synth.add_argument("--output", default=None, help="Output WAV path (default: tmp/<slug>.wav)")
     synth.add_argument("--json", action="store_true", help="Print raw JSON instead of a table")
+
+    voice = sub.add_parser(
+        "voice",
+        help="Full voice turn: mic -> STT -> RAG -> TTS -> WAV (Phase 3E)",
+    )
+    voice.add_argument("--duration", type=float, default=None, help="Recording duration in seconds (default: config)")
+    voice.add_argument("--sample-rate", type=int, default=None, help="Capture sample rate (default: config)")
+    voice.add_argument("--channels", type=int, default=None, help="Capture channels (default: config)")
+    voice.add_argument("--language", default=None, help="STT language hint (e.g. hi, en)")
+    voice.add_argument("--model", default=None, help="Override stt.model_name")
+    voice.add_argument("--device", type=int, default=None, help="sounddevice input device index")
+    voice.add_argument("--top-k", type=int, default=None, help="RAG top-k")
+    voice.add_argument("--size", type=int, default=None, help="Sample size for fresh index")
+    voice.add_argument("--load-index", action="store_true", help="Load persisted vector index")
+    voice.add_argument("--output", default=None, help="TTS output WAV path")
+    voice.add_argument("--no-rag", action="store_true", help="Skip RAG (mic -> STT -> TTS only)")
+    voice.add_argument("--debug", action="store_true", help="Keep temp WAV, print per-stage latency")
+    voice.add_argument("--json", action="store_true", help="Print raw JSON instead of a table")
     return parser
 
 
@@ -474,6 +492,135 @@ def run_synthesize(config: AppConfig, text: str, language: str | None, output: s
 def _default_tts_output(text: str, language: str) -> str:
     slug = "".join(c for c in text.strip().lower().split()[0] if c.isalnum())[:20] if text.split() else "speech"
     return f"tmp/{slug}-{language or 'auto'}.wav"
+
+
+def run_voice(
+    config: AppConfig,
+    *,
+    duration: float | None = None,
+    sample_rate: int | None = None,
+    channels: int | None = None,
+    language: str | None = None,
+    model: str | None = None,
+    top_k: int | None = None,
+    size: int | None = None,
+    load_index: bool = False,
+    device: int | None = None,
+    tts_output: str | None = None,
+    no_rag: bool = False,
+    debug: bool = False,
+    as_json: bool = False,
+    recorder: MicrophoneRecorder | None = None,
+    stt: Any | None = None,
+    harness: Any | None = None,
+    tts: Any | None = None,
+) -> int:
+    """Full voice turn: mic -> STT -> RAG -> TTS -> WAV.  Returns exit code."""
+    from .voice_loop import run_voice_turn
+
+    # Build components
+    active_stt = stt or _build_stt_for_listen(config, model)
+    active_harness = None
+    if not no_rag:
+        if harness is not None:
+            active_harness = harness
+        else:
+            inspector = DatasetInspector(config.dataset)
+            engine = build_retrieval_engine(config)
+            if load_index:
+                engine.store.load()
+            else:
+                docs = inspector.normalized_sample(size)
+                engine.index_documents(docs)
+            active_harness = build_harness(config, engine.query)
+
+    active_tts = tts or build_tts_provider(
+        provider=config.tts.provider,
+        language=config.tts.language,
+        cache_dir=config.tts.cache_dir,
+    )
+
+    active_recorder = recorder or MicrophoneRecorder(
+        sample_rate=sample_rate or config.audio.sample_rate,
+        channels=channels or config.audio.channels,
+        duration_seconds=duration or config.audio.duration_seconds,
+        device=device,
+    )
+
+    if normalize_stt_provider_name(config.stt.provider) == "mock":
+        print(
+            "WARNING: stt.provider='mock' is a deterministic test stub. "
+            "Use stt.provider='faster_whisper' for a real transcription.",
+            file=sys.stderr,
+        )
+    if normalize_tts_provider_name(config.tts.provider) == "mock":
+        print(
+            "WARNING: tts.provider='mock' is a deterministic test stub. "
+            "Use tts.provider='mms' for real local speech synthesis.",
+            file=sys.stderr,
+        )
+
+    try:
+        print("Press Enter to start recording...", end="", flush=True, file=sys.stderr)
+        input()
+        print(f"Recording for {active_recorder.duration_seconds:.1f} s - speak now.", file=sys.stderr)
+    except KeyboardInterrupt:
+        print("\nRecording cancelled.", file=sys.stderr)
+        return 1
+    except EOFError:
+        print(f"\nRecording for {active_recorder.duration_seconds:.1f} s - speak now.", file=sys.stderr)
+
+    result = run_voice_turn(
+        stt=active_stt,
+        harness=active_harness,
+        tts=active_tts,
+        recorder=active_recorder,
+        language=language,
+        top_k=top_k,
+        tts_output=tts_output,
+        debug=debug,
+    )
+
+    if as_json:
+        _print_json(result.as_dict())
+        if result.error is not None:
+            return 1
+    else:
+        if result.error is not None:
+            print(f"ERROR [{result.error_stage}]: {result.error}")
+            return 1
+        print(f"Detected language: {result.detected_language or 'N/A'} (p={result.language_probability:.3f})")
+        print(f"Transcription: {result.transcription}")
+        if result.rag_response is not None:
+            rag = result.rag_response
+            print(f"RAG answer: {rag.answer}")
+            print(f"Grounded: {rag.grounded} (confidence={rag.confidence:.4f})")
+            if rag.guardrail:
+                print(f"Guardrail: {rag.guardrail}")
+            if rag.sources:
+                print("Sources:")
+                for source in rag.sources:
+                    excerpt = source.excerpt.strip().replace("\n", " ")
+                    print(f"  - {source.document_id} (score {source.score:.4f}) {excerpt[:100]}")
+        if result.tts_audio_path:
+            print(f"TTS output: {result.tts_audio_path}")
+            print(f"TTS audio duration: {result.tts_duration_seconds:.3f} s")
+            print(f"TTS RTF: {result.tts_rtf:.3f}")
+        print("Latency:")
+        print(f"  recording duration      : {result.recording_duration_seconds:.3f} s")
+        print(f"  STT processing          : {result.stt_processing_ms:.1f} ms")
+        print(f"  STT RTF                 : {result.stt_rtf:.3f}")
+        print(f"  STT model load          : {result.stt_load_ms:.1f} ms   (one-time)")
+        if result.rag_response is not None:
+            print(f"  RAG retrieval           : {result.rag_retrieval_ms:.1f} ms")
+            print(f"  RAG generation          : {result.rag_generation_ms:.1f} ms")
+            print(f"  RAG grounding           : {result.rag_grounding_ms:.1f} ms")
+            print(f"  RAG total               : {result.rag_total_ms:.1f} ms")
+        if result.tts_audio_path:
+            print(f"  TTS synthesis           : {result.tts_synthesis_ms:.1f} ms")
+            print(f"  TTS load                : {result.tts_load_ms:.1f} ms   (one-time)")
+        print(f"  total post-recording    : {result.total_post_recording_ms:.1f} ms")
+    return 0
 
 
 def run_rag_evaluate(config: AppConfig, size: int | None, queries: int, top_k: int | None, debug: bool) -> None:
@@ -1072,6 +1219,25 @@ def main() -> None:
             language=args.language,
             output=args.output,
             as_json=args.json,
+        )
+    elif args.command == "voice":
+        sys.exit(
+            run_voice(
+                config,
+                duration=args.duration,
+                sample_rate=args.sample_rate,
+                channels=args.channels,
+                language=args.language,
+                model=args.model,
+                top_k=args.top_k,
+                size=args.size,
+                load_index=args.load_index,
+                device=args.device,
+                tts_output=args.output,
+                no_rag=args.no_rag,
+                debug=args.debug,
+                as_json=args.json,
+            )
         )
     else:
         raise ValueError(f"Unsupported command: {args.command}")

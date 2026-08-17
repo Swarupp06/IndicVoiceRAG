@@ -646,9 +646,14 @@ harness.
 .venv\Scripts\python.exe -m indicvoicerag.cli synthesize --text "मिर्ची में कितने विबिन्ना प्रजात्या है" --language hi --output out.wav
 .venv\Scripts\python.exe -m indicvoicerag.cli synthesize --text "नमस्ते" --json
 .venv\Scripts\python.exe -m indicvoicerag.cli rag --query "मिर्ची की प्रजातियाँ" --tts-output answer.wav   # RAG answer -> TTS -> WAV
+
+# Phase 3E: full voice turn - mic -> STT -> RAG -> TTS -> WAV (one controlled turn)
+.venv\Scripts\python.exe -m indicvoicerag.cli voice --language hi            # push-to-talk, full pipeline
+.venv\Scripts\python.exe -m indicvoicerag.cli voice --duration 8 --no-rag    # mic -> STT -> TTS only
+.venv\Scripts\python.exe -m indicvoicerag.cli voice --json --debug           # machine-readable + keep temp WAV
 ```
 
-`transcribe --json`, `--language`, `benchmark-stt --audio/--label/--ground-truth/--language/--no-warmup/--json`, `listen --duration/--sample-rate/--channels/--language/--model/--top-k/--size/--load-index/--device/--no-rag/--json/--debug`, and `synthesize --text/--language/--output/--json` are also supported.
+`transcribe --json`, `--language`, `benchmark-stt --audio/--label/--ground-truth/--language/--no-warmup/--json`, `listen --duration/--sample-rate/--channels/--language/--model/--top-k/--size/--load-index/--device/--no-rag/--json/--debug`, `synthesize --text/--language/--output/--json`, and `voice --duration/--sample-rate/--channels/--language/--model/--top-k/--size/--load-index/--device/--output/--no-rag/--json/--debug` are also supported.
 
 > `listen` requires the `mic` extra: `pip install -e .[mic]` (installs `sounddevice`,
 > which bundles PortAudio on Windows). Press Enter to start the fixed-duration
@@ -1020,5 +1025,102 @@ unsupported language, provider failure, result schema, provider-name
 normalization + builder dispatch, MMSIndicTTS with an injected fake VITS model
 (synthesis, language table, failure wrapping, **model-loads-once-and-reuses**
 regression), CLI `synthesize`, and the RAG->TTS glue with mock providers.
+
+---
+
+# Phase 3E - Voice Loop Integration
+
+Phase 3E connects the already-working components into one controlled voice
+turn:
+
+```text
+user speaks
+  -> MicrophoneRecorder (Phase 3C)
+  -> AudioCaptureResult (mono float32 PCM)
+  -> STTProvider / faster-whisper small (Phase 3A/3B)
+  -> TranscriptionResult (text + metadata)
+  -> RAGHarness.answer(text) (Phase 2) — text-based, untouched
+  -> RAGResponse (answer + grounding + guardrails)
+  -> TTSProvider / mms-tts-hin (Phase 3D) — only on normal answered path
+  -> TTSResult / WAV output
+```
+
+The RAG core stays text-based.  TTS is pure output glue.  Guardrail refusals
+produce no audio (TTS is skipped when `guardrail` is set).
+
+## Design
+
+- `src/indicvoicerag/voice_loop.py`: `VoiceTurnResult` dataclass + `run_voice_turn()`.
+  Accepts injectable `stt`, `harness`, `tts`, `recorder` for offline testing.
+  Every stage is timed independently.  Errors at any stage propagate cleanly
+  (mic/STT/RAG/TTS) without crashing the pipeline.
+- CLI: `voice --duration --language --model --top-k --output --no-rag --json --debug`.
+  Reuses the existing config and component builders.
+- Guardrail refusals are not synthesized — no audio is generated, which is the
+  simplest behavior consistent with the existing architecture.
+
+## VoiceTurnResult
+
+Structured outcome of a single voice turn:
+
+| Field | Description |
+|---|---|
+| `transcription` | STT output text |
+| `detected_language` | language code from STT |
+| `rag_response` | full RAGResponse (answer, grounded, sources, guardrail, metrics) |
+| `tts_audio_path` | output WAV path (None if TTS skipped/failed) |
+| `recording_duration_seconds` | mic recording time (NOT system processing) |
+| `stt_processing_ms` | STT inference time |
+| `rag_total_ms` | total RAG time (retrieval + generation + grounding) |
+| `tts_synthesis_ms` | TTS inference time |
+| `total_post_recording_ms` | all processing after recording stopped |
+| `error` / `error_stage` | error message and which stage failed |
+
+## End-to-end smoke test (real components, non-interactive)
+
+Using `samples/hindi.wav` as input through the full pipeline:
+
+| stage | result |
+|---|---|
+| STT | `मिर्ची में कितने विबिन्ना प्रजात्या है` (hi, p=1.000) |
+| RAG | answer `"1."`, grounded=True, confidence=0.87, 3 sources |
+| TTS | valid WAV (mono 16-bit 16kHz, 0.528 s) |
+| total post-recording | 35.7 s (cold STT 6.0s + RAG 0.3s + cold TTS 24.9s) |
+
+Note: STT/TTS cold-start times dominate; warm pipeline is much faster.
+The RAG answer `"1."` is from the mock LLM (real Groq answer depends on
+the actual dataset context); the pipeline wiring is what matters.
+
+## Latency (real components, this machine)
+
+| stage | cold | warm |
+|---|---|---|
+| STT (faster-whisper small) | 6.0 s | 4.0 s (RTF ~0.96) |
+| RAG (Groq llama-3.1-8b-instant) | ~0.3 s | ~0.3 s |
+| TTS (mms-tts-hin) | 16.7 s (first load) | 1.6 s (RTF ~0.49) |
+| **total post-recording** | **~23 s** | **~6 s** |
+
+Cold starts are one-time per process.  The RAG answer text is short (RAG
+harness produces concise answers by design), so TTS synthesis is fast once
+the model is loaded.
+
+## Known limitations
+
+- **One turn only** — this is not a continuous conversation loop.  Each `voice`
+  invocation is a single record-transcribe-answer-synthesize cycle.
+- **No audio playback** — the output is a WAV file; the user plays it manually.
+- **STT cold start** dominates the first turn (~6 s for `small` on CPU).
+- **TTS license** — MMS-TTS is CC-BY-NC 4.0 (non-commercial only).
+- **Hindi transcription quality** — `small` model, no WER ground truth available.
+- **RAG answer quality** depends on the LLM provider and dataset context.
+- **₹0 caveat** — Groq free-tier has rate limits; the TTS is fully local.
+
+## Test coverage (offline, no downloads / mic / APIs)
+
+`tests/test_voice_loop.py` (19 tests): success path, guardrail refusal skips
+TTS, empty transcript, STT failure, RAG failure, TTS failure, mic failure,
+empty recording, no-RAG mode, result schema (normal + error + with TTS),
+CLI success (JSON + human output), CLI STT error, CLI RAG refusal no audio,
+CLI no-RAG mode, CLI cancelled at Enter prompt.
 
 
