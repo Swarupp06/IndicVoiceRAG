@@ -31,6 +31,7 @@ from .retrieval import RetrievalEngine
 from .speech import answer_from_audio
 from .stt import STTError, build_stt_provider, normalize_stt_provider_name
 from .stt_benchmark import STTSample, load_samples, run_stt_benchmark
+from .tts import TTSProvider, TTSError, build_tts_provider, normalize_tts_provider_name
 from .vector_store import build_vector_store
 
 
@@ -77,6 +78,11 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     rag.add_argument("--model", default=None, help="Override llm.model_name")
     rag.add_argument("--load-index", action="store_true", help="Load persisted vector index instead of re-indexing")
+    rag.add_argument(
+        "--tts-output",
+        default=None,
+        help="Synthesize the RAG answer to this WAV via the configured local TTS (Phase 3D)",
+    )
 
     rag_eval = sub.add_parser("rag-evaluate", help="RAG evaluation harness on real data")
     rag_eval.add_argument("--size", type=int, default=None)
@@ -147,6 +153,15 @@ def _build_parser() -> argparse.ArgumentParser:
     listen.add_argument("--no-rag", action="store_true", help="Transcribe only; skip the RAG answer")
     listen.add_argument("--debug", action="store_true", help="Keep the temporary WAV and print per-stage latency")
     listen.add_argument("--json", action="store_true", help="Print raw JSON instead of a table")
+
+    synth = sub.add_parser(
+        "synthesize",
+        help="text -> local TTS -> WAV output (Phase 3D)",
+    )
+    synth.add_argument("--text", required=True, help="Text to synthesize (Hindi by default)")
+    synth.add_argument("--language", default=None, help="Language code (e.g. hi, bn, ta); default from config.tts.language")
+    synth.add_argument("--output", default=None, help="Output WAV path (default: tmp/<slug>.wav)")
+    synth.add_argument("--json", action="store_true", help="Print raw JSON instead of a table")
     return parser
 
 
@@ -349,6 +364,7 @@ def run_rag(
     provider: str | None,
     model: str | None,
     load_index: bool,
+    tts_output: str | None = None,
 ) -> None:
     if provider or model:
         config.llm = replace(
@@ -377,6 +393,10 @@ def run_rag(
     harness = build_harness(config, engine.query)
     response = harness.answer(query=query, top_k=top_k, debug=debug)
 
+    tts_audio = None
+    if tts_output:
+        tts_audio = synthesize_answer_audio(config, response.answer, tts_output)
+
     _print_json(
         {
             "rag_response": response.as_dict(include_metrics=debug),
@@ -391,8 +411,69 @@ def run_rag(
                 "grounding_threshold": config.guardrails.grounding_threshold,
                 "context_max_tokens": config.guardrails.context_max_tokens,
             },
+            "tts_audio": tts_audio.as_dict() if tts_audio is not None else None,
         }
     )
+
+
+def synthesize_answer_audio(config: AppConfig, answer: str, output: str) -> Any:
+    """Phase 3D output layer: RAG answer text -> local TTS -> WAV.
+
+    Pure output glue; the RAG response stays structured and text-based.
+    """
+    tts = build_tts_provider(
+        provider=config.tts.provider,
+        language=config.tts.language,
+        cache_dir=config.tts.cache_dir,
+    )
+    if normalize_tts_provider_name(config.tts.provider) == "mock":
+        print(
+            "WARNING: tts.provider='mock' is a deterministic test stub. "
+            "Use tts.provider='mms' for real local speech synthesis.",
+            file=sys.stderr,
+        )
+    return tts.synthesize(answer, language=config.tts.language, output_path=output)
+
+
+def run_synthesize(config: AppConfig, text: str, language: str | None, output: str | None, as_json: bool) -> None:
+    tts = build_tts_provider(
+        provider=config.tts.provider,
+        language=config.tts.language,
+        cache_dir=config.tts.cache_dir,
+    )
+    if normalize_tts_provider_name(config.tts.provider) == "mock":
+        print(
+            "WARNING: tts.provider='mock' is a deterministic test stub. "
+            "Use tts.provider='mms' for real local speech synthesis.",
+            file=sys.stderr,
+        )
+    requested = language or config.tts.language
+    out_path = output
+    if out_path is None:
+        out_path = _default_tts_output(text, requested)
+    try:
+        result = tts.synthesize(text, language=requested, output_path=out_path)
+    except TTSError as exc:
+        print(f"ERROR: text-to-speech failed: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    if as_json:
+        _print_json(result.as_dict())
+        return
+    print(f"language         : {result.language}")
+    print(f"model            : {result.model} ({tts.name})")
+    print(f"text length      : {len(text)} chars")
+    print(f"audio duration   : {result.duration_seconds:.3f} s")
+    print(f"sample rate      : {result.sample_rate} Hz (mono 16-bit PCM WAV)")
+    print(f"model load       : {result.load_time_ms or 0.0:.1f} ms")
+    print(f"synthesis        : {result.synthesis_time_ms:.1f} ms")
+    print(f"RTF              : {result.rtf:.3f}")
+    print(f"output           : {result.output_path}")
+
+
+def _default_tts_output(text: str, language: str) -> str:
+    slug = "".join(c for c in text.strip().lower().split()[0] if c.isalnum())[:20] if text.split() else "speech"
+    return f"tmp/{slug}-{language or 'auto'}.wav"
 
 
 def run_rag_evaluate(config: AppConfig, size: int | None, queries: int, top_k: int | None, debug: bool) -> None:
@@ -917,6 +998,7 @@ def main() -> None:
             provider=args.provider,
             model=args.model,
             load_index=args.load_index,
+            tts_output=args.tts_output,
         )
     elif args.command == "rag-evaluate":
         run_rag_evaluate(
@@ -982,6 +1064,14 @@ def main() -> None:
                 as_json=args.json,
                 no_rag=args.no_rag,
             )
+        )
+    elif args.command == "synthesize":
+        run_synthesize(
+            config,
+            text=args.text,
+            language=args.language,
+            output=args.output,
+            as_json=args.json,
         )
     else:
         raise ValueError(f"Unsupported command: {args.command}")

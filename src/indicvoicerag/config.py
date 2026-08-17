@@ -108,6 +108,19 @@ class AudioConfig:
 
 
 @dataclass(slots=True)
+class TTSConfig:
+    """Local text-to-speech defaults (Phase 3D)."""
+
+    # mock | mms  (mms = Meta MMS-TTS VITS, per-language local checkpoints)
+    provider: str = "mms"
+    # baseline language for the current pipeline (Hindi first; see tts.py for
+    # the full Indic language -> checkpoint table)
+    language: str = "hi"
+    # where VITS checkpoints are cached (default .cache/tts, gitignored)
+    cache_dir: str | None = None
+
+
+@dataclass(slots=True)
 class AppConfig:
     dataset: DatasetConfig = field(default_factory=DatasetConfig)
     chunking: ChunkingConfig = field(default_factory=ChunkingConfig)
@@ -118,6 +131,7 @@ class AppConfig:
     guardrails: GuardrailConfig = field(default_factory=GuardrailConfig)
     stt: STTConfig = field(default_factory=STTConfig)
     audio: AudioConfig = field(default_factory=AudioConfig)
+    tts: TTSConfig = field(default_factory=TTSConfig)
 
 
 def _merge_into_dataclass(instance: Any, payload: dict[str, Any]) -> None:

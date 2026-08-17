@@ -641,9 +641,14 @@ harness.
 .venv\Scripts\python.exe -m indicvoicerag.cli listen --language hi            # push-to-talk, fixed window
 .venv\Scripts\python.exe -m indicvoicerag.cli listen --duration 8 --no-rag    # STT only, 8 s window
 .venv\Scripts\python.exe -m indicvoicerag.cli listen --json --debug           # machine-readable + keep temp WAV
+
+# Phase 3D: text -> local Indic TTS -> WAV (first run downloads mms-tts-hin into .cache/tts)
+.venv\Scripts\python.exe -m indicvoicerag.cli synthesize --text "मिर्ची में कितने विबिन्ना प्रजात्या है" --language hi --output out.wav
+.venv\Scripts\python.exe -m indicvoicerag.cli synthesize --text "नमस्ते" --json
+.venv\Scripts\python.exe -m indicvoicerag.cli rag --query "मिर्ची की प्रजातियाँ" --tts-output answer.wav   # RAG answer -> TTS -> WAV
 ```
 
-`transcribe --json`, `--language`, `benchmark-stt --audio/--label/--ground-truth/--language/--no-warmup/--json`, and `listen --duration/--sample-rate/--channels/--language/--model/--top-k/--size/--load-index/--device/--no-rag/--json/--debug` are also supported.
+`transcribe --json`, `--language`, `benchmark-stt --audio/--label/--ground-truth/--language/--no-warmup/--json`, `listen --duration/--sample-rate/--channels/--language/--model/--top-k/--size/--load-index/--device/--no-rag/--json/--debug`, and `synthesize --text/--language/--output/--json` are also supported.
 
 > `listen` requires the `mic` extra: `pip install -e .[mic]` (installs `sounddevice`,
 > which bundles PortAudio on Windows). Press Enter to start the fixed-duration
@@ -712,6 +717,11 @@ vad_filter = false
 sample_rate = 16000            # captured PCM is resampled to mono 16 kHz
 channels = 1
 duration_seconds = 5.0         # fixed recording window per `listen` invocation
+
+[tts]                          # Phase 3D: local Indic TTS output layer
+provider = "mms"               # mock | mms (Meta MMS-TTS VITS, local, CC-BY-NC 4.0)
+language = "hi"                # baseline; see tts.py for the Indic checkpoint table
+cache_dir = ".cache/tts"       # model cache (gitignored)
 ```
 
 ---
@@ -904,4 +914,111 @@ characterization.
   recorder/STT/harness: success, `--no-rag`, `--json`, temp-WAV cleanup,
   `--debug` keep, no-microphone / empty-capture / STT-failure controlled
   errors, cancel before recording, and non-interactive stdin.
+
+---
+
+# Phase 3D - Local Indic TTS
+
+Phase 3D adds the **output layer**: `RAG answer text -> local TTS -> WAV`.
+Hindi is mandatory; the provider table covers ~14 Indic languages. The RAG
+harness stays text-based; TTS is pure output glue. No frontend, no voice loop.
+
+## Candidate comparison (audit, this machine: Windows, Python 3.11.9, CPU-only, 7.4 GB RAM)
+
+| Model | Hindi | Indic coverage | CPU | Size | Framework | Py 3.11 | License | Practical? |
+|---|---|---|---|---|---|---|---|---|
+| **MMS-TTS VITS (`mms-tts-hin`)** | yes (Devanagari) | ~14 Indic checkpoints (hi/bn/ta/te/mr/gu/kn/ml/pa/or/as/ne/si/ur) | fast (RTF < 1) | ~138 MB | transformers (already installed) | yes | CC-BY-NC 4.0 | **YES - SELECTED** |
+| Piper (`hi_IN`) | yes | 35 langs | very fast | ~60 MB | onnxruntime + espeak-ng | blocked | MIT | **no** - `piper-phonemize` has no Windows wheel; native build fails (C2015); Windows path needs the standalone `piper.exe` binary |
+| edge-tts / gTTS | excellent | many | n/a | n/a | remote API | yes | free | **no** - cloud, not local (₹0 but not local inference) |
+| eSpeak NG | yes (robotic) | many | fast | ~5 MB | native | yes | GPL | quality too poor for a voice baseline |
+| Bark | yes | 13 | slow | ~1.2 GB | transformers | yes | MIT | CPU latency impractical |
+| Coqui XTTS v2 | yes | 16 | slow | ~1.8 GB | torch | partial (pkg EOL) | CPML non-commercial | heavy, slow, unmaintained |
+| Kokoro / Chatterbox | Hindi support unclear | few | fast/med | ~330 MB+ | torch | yes | Apache-2.0 | unverified Hindi |
+
+**Selected: `facebook/mms-tts-hin`** - real Hindi quality, per-language local
+checkpoints (Indic-forward), runs on the already-installed transformers/torch
+stack (zero new frameworks), pure-Python integration, CPU RTF < 1, ~138 MB,
+₹0. Caveat: CC-BY-NC 4.0 (free **non-commercial** use only) - fine for this
+project, documented for any future commercial use.
+
+## Design
+
+```text
+RAG answer text (structured, text-based) or any Hindi text
+        |
+        v
+TTSProvider.synthesize(text, language="hi", output_path=...)
+        |
+        v
+TTSResult{ audio (float32), sample_rate, duration_seconds,
+           synthesis_time_ms, rtf, model, load_time_ms, output_path }
+        |
+        v
+mono 16-bit PCM WAV (stdlib `wave`, 16 kHz for mms-tts-hin)
+```
+
+- `src/indicvoicerag/tts.py`: `TTSProvider` (ABC) / `TTSResult` /
+  `MockTTS` / `MMSIndicTTS` / `build_tts_provider`. Model is loaded lazily on
+  the first `synthesize` and **reused** for every call on the same instance
+  (same lifecycle as STT). `model_factory` is the offline test injection point.
+- CLI: `synthesize --text --language --output [--json]`; `rag --tts-output FILE`
+  synthesizes the structured RAG answer (retrieval/grounding untouched).
+- The RAG harness is not touched - TTS is a separate output layer.
+
+## Benchmark (real `mms-tts-hin`, this machine)
+
+Cold start (first run, includes model download into `.cache/tts`):
+
+| metric | value |
+|---|---|
+| model download + load | 106.7 s (one-time) |
+| first synthesis (84 chars) | 8.04 s for 6.03 s audio |
+| cold RTF | 1.33 |
+
+Warm (same process, model cached):
+
+| sample | chars | synthesis | audio | RTF |
+|---|---|---|---|---|
+| 1 | 84 | 3.37 s | 6.24 s | 0.54 |
+| 2 | 59 | 2.29 s | 5.02 s | 0.46 |
+| 3 | 54 | 1.93 s | 4.08 s | 0.47 |
+
+Warm RTF ~0.46-0.54 (faster than real time). Model load from cache is
+variable on this noisy box (16-107 s); warm synthesis is ~0.5-2 s for a
+RAG-size answer. Output format: **mono, 16-bit PCM, 16 kHz WAV** (readable by
+PyAV, `wave`, and Windows playback).
+
+## Quality
+
+- **Objective metric**: no reliable speech-quality reference metric (MOS) is
+  available locally, so none is fabricated. The measured objective proxy is a
+  **TTS -> STT round-trip** through the existing faster-whisper `small`:
+  input `मिर्ची में कितने विबिन्ना प्रजात्या है` -> synthesized WAV ->
+  STT recovered `मिर्षी में कितने विबिन्ना पजात्या है` (4/6 words exact;
+  `च/ष` and `प्र/प` single-phoneme differences - attributable to either TTS
+  pronunciation or STT error; honestly ambiguous).
+- **Qualitative (by ear, in this session)**: not audited by ear here - the
+  audio is written to `tmp/3d_hindi.wav` and must be listened to. Reported
+  objectively: Devanagari text is accepted directly (no transliteration
+  needed), the WAV decodes cleanly, and the round-trip above shows the speech
+  is intelligible, recognizable Hindi with no artifacts detectable at the file
+  level. **One successful WAV is not production-ready**; a listening pass and
+  a real MOS are still required.
+
+## RAG -> TTS integration
+
+`rag --query ... --tts-output answer.wav` ran the unchanged RAG pipeline and
+synthesized the structured answer to WAV (`tts_audio` block in the JSON
+report: language `hi`, 16 kHz, load 91.7 s, synthesis 21.6 s for the mock
+answer `1.` - mock LLM, so the spoken text is trivial). Retrieval, grounding
+and guardrails were not modified.
+
+## Test coverage (offline, no downloads / mic / APIs)
+
+`tests/test_tts.py` (15 tests): mock synthesis + WAV format, empty text,
+unsupported language, provider failure, result schema, provider-name
+normalization + builder dispatch, MMSIndicTTS with an injected fake VITS model
+(synthesis, language table, failure wrapping, **model-loads-once-and-reuses**
+regression), CLI `synthesize`, and the RAG->TTS glue with mock providers.
+
 

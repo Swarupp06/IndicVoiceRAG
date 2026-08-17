@@ -87,3 +87,9 @@ vad_filter = false            # Silero VAD pre-filtering (off by default)
 sample_rate = 16000           # captured PCM is resampled to 16 kHz mono
 channels = 1
 duration_seconds = 5.0        # fixed recording window per 'listen' invocation
+
+# --- Phase 3D: local Indic text-to-speech (output layer) ---
+[tts]
+provider = "mms"              # mock | mms (Meta MMS-TTS VITS, local, CC-BY-NC 4.0)
+language = "hi"               # baseline language; see tts.py for the Indic checkpoint table
+cache_dir = ".cache/tts"      # model cache (gitignored)

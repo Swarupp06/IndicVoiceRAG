@@ -14,6 +14,7 @@ from .harness import HarnessComponents, RAGHarness
 from .llm import LLMProvider, build_provider_chain, normalize_provider_name
 from .retrieval import RetrievalEngine
 from .stt import STTProvider, build_stt_provider
+from .tts import TTSProvider, build_tts_provider
 from .vector_store import build_vector_store
 
 
@@ -90,4 +91,13 @@ def build_stt_from_config(config: AppConfig) -> STTProvider:
         beam_size=config.stt.beam_size,
         vad_filter=config.stt.vad_filter,
         download_root=config.stt.download_root,
+    )
+
+
+def build_tts_from_config(config: AppConfig) -> TTSProvider:
+    """Build the configured TTS provider (mock | mms)."""
+    return build_tts_provider(
+        provider=config.tts.provider,
+        language=config.tts.language,
+        cache_dir=config.tts.cache_dir,
     )
