@@ -509,6 +509,16 @@ class TestSarvamSTT:
         assert isinstance(provider, SarvamSTT)
         assert provider.model_name == "saaras:v3"
 
+    def test_build_stt_provider_sarvam_ignores_whisper_model(self) -> None:
+        """Regression: Sarvam must use saaras:v3 even if model_name is a faster-whisper name."""
+        provider = build_stt_provider(
+            provider="sarvam",
+            model_name="small",
+            api_key_env="SARVAM_API_KEY_TEST",
+        )
+        assert isinstance(provider, SarvamSTT)
+        assert provider.model_name == "saaras:v3"
+
     def test_normalize_stt_provider_name_sarvam(self) -> None:
         """Test that Sarvam aliases are normalized correctly."""
         assert normalize_stt_provider_name("sarvam") == "sarvam"

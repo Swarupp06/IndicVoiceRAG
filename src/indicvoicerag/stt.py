@@ -501,7 +501,7 @@ def build_stt_provider(
     if normalized == "sarvam":
         return SarvamSTT(
             api_key_env=api_key_env or "SARVAM_API_KEY",
-            model=model_name or "saaras:v3",
+            model="saaras:v3",
             language_code=language_code or "unknown",
         )
     raise ValueError(f"Unsupported STT provider: {provider}")
