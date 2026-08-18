@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IndicVoiceRAG</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,sans-serif;background:#f5f5f5;color:#333;min-height:100vh}
+.container{max-width:720px;margin:0 auto;padding:24px 16px}
+h1{font-size:1.6em;margin-bottom:4px}
+.desc{color:#666;margin-bottom:20px;font-size:.95em}
+.card{background:#fff;border-radius:8px;padding:20px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+label{display:block;font-weight:600;margin-bottom:6px;font-size:.9em}
+select,input[type=file]{width:100%;padding:8px;border:1px solid #ddd;border-radius:4px;font-size:.9em}
+.controls{display:flex;gap:12px;align-items:end}
+.controls>div{flex:1}
+.btn{background:#2563eb;color:#fff;border:none;padding:10px 24px;border-radius:6px;font-size:1em;cursor:pointer;width:100%;margin-top:12px}
+.btn:hover{background:#1d4ed8}
+.btn:disabled{background:#94a3b8;cursor:not-allowed}
+.rec-controls{display:flex;gap:8px;margin-top:8px}
+.rec-btn{padding:6px 14px;border-radius:4px;border:1px solid #ddd;cursor:pointer;font-size:.85em;background:#fff}
+.rec-btn.active{background:#ef4444;color:#fff;border-color:#ef4444}
+.result{display:none}
+.field{margin-bottom:12px}
+.field h3{font-size:.85em;color:#888;text-transform:uppercase;margin-bottom:4px}
+.field p,.field pre{font-size:.95em;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+.sources{list-style:none;padding:0}
+.sources li{background:#f8f8f8;border-radius:4px;padding:8px 10px;margin-bottom:6px;font-size:.85em;border-left:3px solid #2563eb}
+.sources li .score{color:#2563eb;font-weight:600}
+.latency{display:flex;flex-wrap:wrap;gap:8px}
+.latency span{background:#f0f0f0;padding:4px 8px;border-radius:4px;font-size:.8em}
+.error{background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:12px;color:#dc2626}
+.audio-player{margin-top:8px}
+.audio-player audio{width:100%}
+#status{font-size:.85em;color:#666;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>IndicVoiceRAG</h1>
+  <p class="desc">Voice-enabled multilingual RAG using MSMARCO-XI</p>
+
+  <div class="card">
+    <div class="controls">
+      <div>
+        <label for="stt-provider">STT Provider</label>
+        <select id="stt-provider">
+          <option value="sarvam" selected>Sarvam (cloud)</option>
+        </select>
+      </div>
+      <div>
+        <label for="language">Language</label>
+        <select id="language">
+          <option value="hi-IN" selected>Hindi</option>
+          <option value="en-IN">English</option>
+          <option value="auto">Auto-detect</option>
+        </select>
+      </div>
+    </div>
+
+    <label for="audio-file" style="margin-top:16px">Upload audio file (WAV preferred)</label>
+    <input type="file" id="audio-file" accept="audio/*,.wav,.mp3,.ogg,.webm">
+
+    <div style="text-align:center;color:#888;margin:12px 0">— or —</div>
+
+    <label>Record from microphone</label>
+    <div class="rec-controls">
+      <button class="rec-btn" id="rec-btn" onclick="toggleRecord()">Start Recording</button>
+      <span id="rec-status" style="font-size:.85em;color:#666;align-self:center"></span>
+    </div>
+
+    <button class="btn" id="submit-btn" onclick="submitAudio()" disabled>Ask</button>
+    <div id="status"></div>
+  </div>
+
+  <div class="card result" id="result">
+    <div class="field" id="err-field" style="display:none"><div class="error" id="err-text"></div></div>
+    <div class="field"><h3>Transcription</h3><p id="transcription">—</p></div>
+    <div class="field"><h3>Answer</h3><p id="answer">—</p></div>
+    <div class="field" id="sources-field" style="display:none"><h3>Sources</h3><ul class="sources" id="sources"></ul></div>
+    <div class="field"><h3>Grounding</h3><p id="grounding">—</p></div>
+    <div class="field" id="tts-field" style="display:none"><h3>Audio Answer</h3><div class="audio-player"><audio id="tts-audio" controls></audio></div></div>
+    <div class="field"><h3>Latency</h3><div class="latency" id="latency"></div></div>
+  </div>
+</div>
+
+<script>
+let mediaRecorder = null;
+let audioChunks = [];
+let recordedBlob = null;
+
+const audioFile = document.getElementById('audio-file');
+const recBtn = document.getElementById('rec-btn');
+const submitBtn = document.getElementById('submit-btn');
+const recStatus = document.getElementById('rec-status');
+
+audioFile.addEventListener('change', () => {
+  if (audioFile.files.length > 0) { recordedBlob = null; updateSubmitState(); }
+});
+
+function updateSubmitState() {
+  submitBtn.disabled = !(audioFile.files.length > 0 || recordedBlob);
+}
+
+async function toggleRecord() {
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    mediaRecorder.stop();
+    recBtn.textContent = 'Start Recording';
+    recBtn.classList.remove('active');
+    return;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    audioChunks = [];
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+    mediaRecorder.onstop = () => {
+      recordedBlob = new Blob(audioChunks, { type: 'audio/webm' });
+      recStatus.textContent = `Recorded ${(recordedBlob.size / 1024).toFixed(0)} KB`;
+      stream.getTracks().forEach(t => t.stop());
+      updateSubmitState();
+    };
+    mediaRecorder.start();
+    recBtn.textContent = 'Stop Recording';
+    recBtn.classList.add('active');
+    recStatus.textContent = 'Recording...';
+  } catch (e) {
+    recStatus.textContent = 'Mic access denied';
+  }
+}
+
+async function submitAudio() {
+  const file = audioFile.files[0] || recordedBlob;
+  if (!file) return;
+
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Processing...';
+  document.getElementById('status').textContent = 'Sending audio...';
+  document.getElementById('result').style.display = 'none';
+
+  const formData = new FormData();
+  formData.append('audio', file, file.name || 'recording.webm');
+  formData.append('stt_provider', document.getElementById('stt-provider').value);
+  formData.append('language', document.getElementById('language').value);
+
+  try {
+    document.getElementById('status').textContent = 'Transcribing + Retrieving + Generating...';
+    const resp = await fetch('/api/ask', { method: 'POST', body: formData });
+    const data = await resp.json();
+
+    document.getElementById('result').style.display = 'block';
+    document.getElementById('status').textContent = '';
+
+    if (data.error) {
+      document.getElementById('err-field').style.display = 'block';
+      document.getElementById('err-text').textContent = data.error;
+      document.getElementById('transcription').textContent = data.transcription || '—';
+      document.getElementById('answer').textContent = '—';
+    } else {
+      document.getElementById('err-field').style.display = 'none';
+      document.getElementById('transcription').textContent = data.transcription || '—';
+
+      const rag = data.rag || {};
+      document.getElementById('answer').textContent = rag.answer || '—';
+
+      const grounded = rag.grounded;
+      const confidence = rag.confidence;
+      document.getElementById('grounding').textContent =
+        `Grounded: ${grounded !== undefined ? (grounded ? 'Yes' : 'No') : '—'} | Confidence: ${confidence !== undefined ? (confidence * 100).toFixed(1) + '%' : '—'}`;
+      if (rag.guardrail) {
+        document.getElementById('grounding').textContent += ` | Guardrail: ${rag.guardrail}`;
+      }
+
+      const sourcesEl = document.getElementById('sources');
+      const sources = rag.sources || [];
+      if (sources.length > 0) {
+        document.getElementById('sources-field').style.display = 'block';
+        sourcesEl.innerHTML = sources.map(s =>
+          `<li><span class="score">[${(s.score * 100).toFixed(0)}%]</span> ${s.excerpt || s.document_id}</li>`
+        ).join('');
+      } else {
+        document.getElementById('sources-field').style.display = 'none';
+      }
+
+      if (data.tts_audio_url) {
+        document.getElementById('tts-field').style.display = 'block';
+        document.getElementById('tts-audio').src = data.tts_audio_url;
+      } else {
+        document.getElementById('tts-field').style.display = 'none';
+      }
+
+      const latEl = document.getElementById('latency');
+      const items = [];
+      if (data.stt_ms) items.push(`STT: ${data.stt_ms}ms`);
+      if (data.rag_total_ms) items.push(`RAG: ${data.rag_total_ms}ms`);
+      if (data.tts_ms) items.push(`TTS: ${data.tts_ms}ms`);
+      if (data.total_ms) items.push(`Total: ${data.total_ms}ms`);
+      latEl.innerHTML = items.map(i => `<span>${i}</span>`).join('');
+    }
+  } catch (e) {
+    document.getElementById('result').style.display = 'block';
+    document.getElementById('err-field').style.display = 'block';
+    document.getElementById('err-text').textContent = `Request failed: ${e.message}`;
+    document.getElementById('status').textContent = '';
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Ask';
+    updateSubmitState();
+  }
+}
+</script>
+</body>
+</html>

@@ -128,6 +128,9 @@ src/indicvoicerag/
   stt_benchmark.py  # reproducible RTF/WER benchmark (Phase 3A)
   speech.py         # audio -> STT -> text -> RAGHarness glue (Phase 3A)
   audio_capture.py  # microphone recording -> mono 16 kHz PCM (Phase 3C)
+  web.py            # minimal FastAPI web server (live demo)
+  static/
+    index.html      # browser UI for the live demo
 benchmarks/
   queries.json      # fixed 20-query provider benchmark set
   results/          # benchmark JSON + CSV reports
@@ -1117,7 +1120,74 @@ Cold starts are one-time per process.  The RAG answer text is short (RAG
 harness produces concise answers by design), so TTS synthesis is fast once
 the model is loaded.
 
-## Known limitations
+## Live Demo
+
+### Quick start
+
+```powershell
+# 1. Set environment variables (never commit these)
+# .env file should contain:
+#   GROQ_API_KEY=your_groq_key
+#   SARVAM_API_KEY=your_sarvam_key
+
+# 2. Install web dependencies
+pip install -e ".[web]"
+
+# 3. Start the server
+python -m indicvoicerag.web
+# Server starts at http://localhost:8000
+
+# 4. Open browser to http://localhost:8000
+```
+
+### API endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/` | GET | Web UI (HTML) |
+| `/health` | GET | Health check: `{"status": "ok"}` |
+| `/api/ask` | POST | Audio upload → STT → RAG → TTS → JSON response |
+| `/api/tts/{filename}` | GET | Serve TTS audio file |
+
+### POST /api/ask
+
+**Request:** multipart/form-data
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `audio` | file | required | Audio file (WAV, MP3, WebM) |
+| `stt_provider` | string | `sarvam` | STT provider (`sarvam` or `faster_whisper`) |
+| `language` | string | `hi-IN` | BCP-47 language code |
+
+**Response:** JSON with transcription, RAG answer, sources, grounding, TTS audio URL, latency breakdown.
+
+### Provider path (demo)
+
+```
+Audio → Sarvam STT (saaras:v3) → MSMARCO-XI retrieval → Groq LLM → grounding/guardrails → MMS Hindi TTS
+```
+
+### Cost
+
+- **Sarvam STT:** Free credits (limited)
+- **Groq LLM:** Free tier (rate-limited)
+- **MMS TTS:** ₹0 (local CPU)
+- **FAISS + e5-small:** ₹0 (local CPU)
+
+### Deployment notes
+
+The web server requires:
+- Python 3.11+
+- `SARVAM_API_KEY` and `GROQ_API_KEY` environment variables
+- ~1 GB RAM for TTS model
+- ~500 MB RAM for STT model (Sarvam is cloud, minimal local RAM)
+
+For public deployment, the server must:
+1. Have access to the HuggingFace models (or pre-cache them)
+2. Run `uvicorn indicvoicerag.web:app --host 0.0.0.0 --port 8000`
+3. Set the required environment variables
+
+### Known limitations
 
 - **One turn only** — this is not a continuous conversation loop.  Each `voice`
   invocation is a single record-transcribe-answer-synthesize cycle.

@@ -20,6 +20,7 @@ faiss = ["faiss-cpu>=1.8.0"]
 stt = ["faster-whisper>=1.2.1"]
 mic = ["sounddevice>=0.4.6"]
 tts = ["transformers>=4.33"]
+web = ["fastapi>=0.100.0", "uvicorn>=0.23.0", "python-multipart>=0.0.6"]
 dev = ["pytest>=8.0.0"]
 
 [project.scripts]
