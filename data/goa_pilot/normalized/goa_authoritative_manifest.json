@@ -1,0 +1,53 @@
+{
+  "corpus_name": "goa_authoritative",
+  "version": "1.0.0",
+  "phase": "4B",
+  "access_date": "2026-08-18",
+  "document_count": 37,
+  "sources_used": [
+    {
+      "url": "https://goatourism.gov.in/wp-content/uploads/2018/12/Goa-Tourist-Directory-2019.pdf",
+      "publisher": "Department of Tourism, Government of Goa",
+      "type": "official_government_pdf",
+      "fetched": true
+    },
+    {
+      "url": "https://dip.goa.gov.in/monuments-structure-of-goa/",
+      "publisher": "Department of Information and Publicity, Government of Goa",
+      "type": "official_government_portal",
+      "fetched": true
+    },
+    {
+      "url": "https://museum.goa.gov.in/glimpses-of-goan-culture/",
+      "publisher": "Directorate of Museums, Government of Goa",
+      "type": "official_government_museum",
+      "fetched": true
+    },
+    {
+      "url": "https://www.goa.gov.in/what_to_see/heritage-mansions/",
+      "publisher": "Government of Goa",
+      "type": "official_government_portal",
+      "fetched": true
+    },
+    {
+      "url": "https://whc.unesco.org/en/list/234/",
+      "publisher": "UNESCO World Heritage Centre",
+      "type": "international_organization",
+      "fetched": true
+    }
+  ],
+  "categories": {
+    "geography": 3,
+    "visitor_information": 3,
+    "tourism": 12,
+    "heritage": 13,
+    "culture": 6
+  },
+  "languages": {
+    "eng": 36,
+    "hin": 1
+  },
+  "wikipedia_count": 0,
+  "official_government_count": 35,
+  "unesco_count": 2
+}
