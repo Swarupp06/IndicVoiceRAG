@@ -1,4 +1,4 @@
-# IndicVoiceRAG - Phase 1, 2 & 3A Foundation
+# IndicVoiceRAG - Phase 1, 2, 3A & 3F Foundation
 
 Backend foundation for HH Goa 2026 Task 2:
 
@@ -6,7 +6,9 @@ Backend foundation for HH Goa 2026 Task 2:
 
 **Phase 2 (RAG):** User Text -> Query Processing -> Retrieval -> Context Building -> LLM Answer Generation -> Grounding Validation -> Guardrails -> Structured Response
 
-**Phase 3A (local speech-to-text):** Audio File -> Local STT (faster-whisper, CPU, ₹0) -> Text -> existing RAG pipeline
+**Phase 3A (speech-to-text):** Audio File -> STT (faster-whisper local CPU ₹0 OR Sarvam API) -> Text -> existing RAG pipeline
+
+**Phase 3F (Sarvam STT):** Sarvam API integration for cloud-based Indian language STT (22 Indic languages + English)
 
 ## What is implemented
 
@@ -79,6 +81,7 @@ Backend foundation for HH Goa 2026 Task 2:
 ### Local speech-to-text (Phase 3A)
 - `STTProvider` abstraction: `audio file -> TranscriptionResult{text, language, language_probability, duration, processing_time, RTF, model}`.
 - `faster_whisper` provider (CTranslate2, local CPU, **₹0 - no cloud API**), lazy model load (constructing the provider never downloads), `tiny` int8 default, `language`/`beam_size`/`vad_filter` options.
+- `sarvam` provider (Sarvam API, cloud STT for 22 Indian languages + English, requires `SARVAM_API_KEY`).
 - `MockSTT` deterministic offline stub; every STT test runs offline (model loading is faked).
 - PyAV-based decoding (`audio.py`) - WAV/Ogg/FLAC/MP3 in, mono 16 kHz float32 out; no system FFmpeg needed.
 - Dependency-free WER (`wer.py`) that tokenizes Devanagari text correctly.
@@ -89,7 +92,6 @@ Backend foundation for HH Goa 2026 Task 2:
 ## What is NOT implemented yet
 
 - Microphone input / live streaming (audio is provided as a file)
-- Sarvam/ElevenLabs STT integration
 - Frontend/live demo deployment
 - Authentication
 - Final latency optimization for the sub-200ms target (measured P50 is ~19 s on local CPU generation; see Phase 2.5)
@@ -121,7 +123,7 @@ src/indicvoicerag/
   rag_evaluate.py   # RAG evaluation harness
   pipeline.py       # wiring: config -> real retrieval engine -> harness (+ STT provider)
   audio.py          # PyAV decode -> mono 16 kHz float32 + probe (Phase 3A)
-  stt.py            # STTProvider abstraction + faster-whisper/mock providers (Phase 3A)
+  stt.py            # STTProvider abstraction + faster-whisper/sarvam/mock providers (Phase 3A)
   wer.py            # dependency-free WER (Devanagari-aware) (Phase 3A)
   stt_benchmark.py  # reproducible RTF/WER benchmark (Phase 3A)
   speech.py         # audio -> STT -> text -> RAGHarness glue (Phase 3A)
@@ -610,7 +612,7 @@ AUDIO FILE (wav/ogg/flac/mp3)
 audio.load_audio()          PyAV -> mono 16 kHz float32
    |
    v
-STTProvider.transcribe()    faster-whisper (CTranslate2, CPU, int8) | mock
+STTProvider.transcribe()    faster-whisper (CTranslate2, CPU, int8) | sarvam (API) | mock
    |
    v
 TranscriptionResult{ text, language, language_probability,
@@ -631,8 +633,14 @@ harness.
 # transcribe one audio file (first run downloads the tiny model into .cache/stt)
 .venv\Scripts\python.exe -m indicvoicerag.cli transcribe --audio samples\hindi.wav --language hi
 
+# transcribe with Sarvam API (requires SARVAM_API_KEY env var)
+.venv\Scripts\python.exe -m indicvoicerag.cli transcribe --audio samples\hindi.wav --stt-provider sarvam
+
 # full pipeline: audio -> local STT -> text -> retrieval -> LLM -> grounding -> guardrails
 .venv\Scripts\python.exe -m indicvoicerag.cli transcribe-rag --audio samples\hindi.wav --language hi --load-index
+
+# full pipeline with Sarvam STT
+.venv\Scripts\python.exe -m indicvoicerag.cli transcribe-rag --audio samples\hindi.wav --stt-provider sarvam --load-index
 
 # benchmark all samples in samples/ (uses *.txt sidecars for ground truth)
 .venv\Scripts\python.exe -m indicvoicerag.cli benchmark-stt --samples-dir samples --repeat 2 --out results/stt_benchmark.json
@@ -641,6 +649,9 @@ harness.
 .venv\Scripts\python.exe -m indicvoicerag.cli listen --language hi            # push-to-talk, fixed window
 .venv\Scripts\python.exe -m indicvoicerag.cli listen --duration 8 --no-rag    # STT only, 8 s window
 .venv\Scripts\python.exe -m indicvoicerag.cli listen --json --debug           # machine-readable + keep temp WAV
+
+# listen with Sarvam STT
+.venv\Scripts\python.exe -m indicvoicerag.cli listen --stt-provider sarvam --language hi
 
 # Phase 3D: text -> local Indic TTS -> WAV (first run downloads mms-tts-hin into .cache/tts)
 .venv\Scripts\python.exe -m indicvoicerag.cli synthesize --text "मिर्ची में कितने विबिन्ना प्रजात्या है" --language hi --output out.wav
@@ -709,13 +720,15 @@ Full report incl. transcripts: `results/stt_benchmark.json`.
 
 ```toml
 [stt]
-provider = "faster_whisper"   # faster_whisper | mock (mock = tests only)
+provider = "faster_whisper"   # faster_whisper | sarvam | mock (mock = tests only)
 model_name = "small"          # Phase 3B selection: tiny | base | small | medium | large-v3
 device = "cpu"                # this machine has no GPU
 compute_type = "int8"         # int8 (fast CPU) | int8_float32 | int8_float16 | int16 | float32
 language = ""                 # "" = auto-detect; "en" / "hi" to pin
 download_root = ".cache/stt"  # model cache (gitignored)
 beam_size = 5
+api_key_env = "SARVAM_API_KEY"  # env var holding API key (Sarvam only)
+language_code = "unknown"        # BCP-47 code for Sarvam (hi-IN, en-IN, unknown)
 vad_filter = false
 
 [audio]                        # Phase 3C: microphone capture defaults

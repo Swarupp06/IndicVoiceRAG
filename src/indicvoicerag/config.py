@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
-import tomllib
 from typing import Any
 
 
@@ -85,7 +85,7 @@ class GuardrailConfig:
 
 @dataclass(slots=True)
 class STTConfig:
-    # mock | faster_whisper
+    # mock | faster_whisper | sarvam
     provider: str = "faster_whisper"
     # Phase 3B selection: 'small' is the smallest model that produces usable
     # Devanagari Hindi (tiny/base emit Latin/Arabic script and garbled words).
@@ -96,6 +96,8 @@ class STTConfig:
     download_root: str | None = None  # where to cache the model (default .cache/stt)
     beam_size: int = 5
     vad_filter: bool = False
+    api_key_env: str | None = None  # env var holding API key (Sarvam: SARVAM_API_KEY)
+    language_code: str | None = "unknown"  # BCP-47 code for Sarvam (hi-IN, en-IN, unknown)
 
 
 @dataclass(slots=True)

@@ -113,11 +113,13 @@ def _build_parser() -> argparse.ArgumentParser:
     transcribe = sub.add_parser("transcribe", help="Transcribe a local audio file (Phase 3A STT)")
     transcribe.add_argument("--audio", required=True, help="Path to a local audio file (WAV preferred)")
     transcribe.add_argument("--language", default=None, help="Hint language code (e.g. en, hi); default auto-detect")
+    transcribe.add_argument("--stt-provider", default=None, help="Override STT provider (faster_whisper | sarvam | mock)")
     transcribe.add_argument("--json", action="store_true", help="Print raw JSON instead of a table")
 
     transcribe_rag = sub.add_parser("transcribe-rag", help="Audio -> STT -> text -> existing RAGHarness")
     transcribe_rag.add_argument("--audio", required=True, help="Path to a local audio file (WAV preferred)")
     transcribe_rag.add_argument("--language", default=None, help="Hint language code (e.g. en, hi)")
+    transcribe_rag.add_argument("--stt-provider", default=None, help="Override STT provider (faster_whisper | sarvam | mock)")
     transcribe_rag.add_argument("--size", type=int, default=None)
     transcribe_rag.add_argument("--top-k", type=int, default=None)
     transcribe_rag.add_argument("--debug", action="store_true", help="Include per-stage latency metrics")
@@ -146,6 +148,7 @@ def _build_parser() -> argparse.ArgumentParser:
     listen.add_argument("--channels", type=int, default=None, help="Capture channels (default: config.audio.channels = 1)")
     listen.add_argument("--language", default=None, help="STT language hint (e.g. hi, en); default from config, empty = auto-detect")
     listen.add_argument("--model", default=None, help="Override stt.model_name (e.g. small); does not change the config")
+    listen.add_argument("--stt-provider", default=None, help="Override STT provider (faster_whisper | sarvam | mock)")
     listen.add_argument("--device", type=int, default=None, help="sounddevice input device index (default: system default)")
     listen.add_argument("--top-k", type=int, default=None, help="RAG top-k (default: config.retrieval.top_k)")
     listen.add_argument("--size", type=int, default=None, help="Sample size when building a fresh RAG index (ignored with --load-index)")
@@ -172,6 +175,7 @@ def _build_parser() -> argparse.ArgumentParser:
     voice.add_argument("--channels", type=int, default=None, help="Capture channels (default: config)")
     voice.add_argument("--language", default=None, help="STT language hint (e.g. hi, en)")
     voice.add_argument("--model", default=None, help="Override stt.model_name")
+    voice.add_argument("--stt-provider", default=None, help="Override STT provider (faster_whisper | sarvam | mock)")
     voice.add_argument("--device", type=int, default=None, help="sounddevice input device index")
     voice.add_argument("--top-k", type=int, default=None, help="RAG top-k")
     voice.add_argument("--size", type=int, default=None, help="Sample size for fresh index")
@@ -502,6 +506,7 @@ def run_voice(
     channels: int | None = None,
     language: str | None = None,
     model: str | None = None,
+    stt_provider: str | None = None,
     top_k: int | None = None,
     size: int | None = None,
     load_index: bool = False,
@@ -519,7 +524,7 @@ def run_voice(
     from .voice_loop import run_voice_turn
 
     # Build components
-    active_stt = stt or _build_stt_for_listen(config, model)
+    active_stt = stt or _build_stt_for_listen(config, model, stt_provider)
     active_harness = None
     if not no_rag:
         if harness is not None:
@@ -804,9 +809,21 @@ def run_provider_benchmark(
     _print_json({**report, "runs": summary_only, "report_path": out, "rows_path": rows_out})
 
 
-def run_transcribe(config: AppConfig, audio: str, language: str | None, as_json: bool) -> None:
-    stt = build_stt_from_config(config)
-    if normalize_stt_provider_name(config.stt.provider) == "mock":
+def run_transcribe(config: AppConfig, audio: str, language: str | None, as_json: bool, stt_provider: str | None = None) -> None:
+    effective_provider = stt_provider or config.stt.provider
+    stt = build_stt_provider(
+        provider=effective_provider,
+        model_name=config.stt.model_name,
+        device=config.stt.device,
+        compute_type=config.stt.compute_type,
+        language=config.stt.language,
+        beam_size=config.stt.beam_size,
+        vad_filter=config.stt.vad_filter,
+        download_root=config.stt.download_root,
+        api_key_env=config.stt.api_key_env,
+        language_code=config.stt.language_code,
+    )
+    if normalize_stt_provider_name(effective_provider) == "mock":
         print(
             "WARNING: stt.provider='mock' is a deterministic test stub. "
             "Use --config with stt.provider='faster_whisper' for a real transcription.",
@@ -834,8 +851,21 @@ def run_transcribe_rag(
     top_k: int | None,
     debug: bool,
     load_index: bool,
+    stt_provider: str | None = None,
 ) -> None:
-    stt = build_stt_from_config(config)
+    effective_provider = stt_provider or config.stt.provider
+    stt = build_stt_provider(
+        provider=effective_provider,
+        model_name=config.stt.model_name,
+        device=config.stt.device,
+        compute_type=config.stt.compute_type,
+        language=config.stt.language,
+        beam_size=config.stt.beam_size,
+        vad_filter=config.stt.vad_filter,
+        download_root=config.stt.download_root,
+        api_key_env=config.stt.api_key_env,
+        language_code=config.stt.language_code,
+    )
     inspector = DatasetInspector(config.dataset)
     engine = build_retrieval_engine(config)
     if load_index:
@@ -934,18 +964,21 @@ def run_stt_benchmark_cli(
         print("\nWER is only reported when a ground-truth reference exists (samples/<name>.txt sidecar or --ground-truth).")
 
 
-def _build_stt_for_listen(config: AppConfig, model: str | None) -> Any:
-    """Build the configured STT provider, honoring an optional model override."""
-    if model:
+def _build_stt_for_listen(config: AppConfig, model: str | None, provider: str | None = None) -> Any:
+    """Build the configured STT provider, honoring optional model/provider overrides."""
+    effective_provider = provider or config.stt.provider
+    if model or provider:
         return build_stt_provider(
-            provider=config.stt.provider,
-            model_name=model,
+            provider=effective_provider,
+            model_name=model or config.stt.model_name,
             device=config.stt.device,
             compute_type=config.stt.compute_type,
             language=config.stt.language or None,
             beam_size=config.stt.beam_size,
             vad_filter=config.stt.vad_filter,
             download_root=config.stt.download_root,
+            api_key_env=config.stt.api_key_env,
+            language_code=config.stt.language_code,
         )
     return build_stt_from_config(config)
 
@@ -958,6 +991,7 @@ def run_listen(
     channels: int | None = None,
     language: str | None = None,
     model: str | None = None,
+    stt_provider: str | None = None,
     top_k: int | None = None,
     size: int | None = None,
     load_index: bool = False,
@@ -974,8 +1008,9 @@ def run_listen(
     never prints an opaque traceback. Recording time is reported but never
     counted as system processing latency.
     """
-    stt = _build_stt_for_listen(config, model)
-    if normalize_stt_provider_name(config.stt.provider) == "mock":
+    stt = _build_stt_for_listen(config, model, stt_provider)
+    effective_provider = normalize_stt_provider_name(stt_provider or config.stt.provider)
+    if effective_provider == "mock":
         print(
             "WARNING: stt.provider='mock' is a deterministic test stub. "
             "Use stt.provider='faster_whisper' for a real transcription.",
@@ -1170,7 +1205,7 @@ def main() -> None:
             rows_out=args.rows_out,
         )
     elif args.command == "transcribe":
-        run_transcribe(config, audio=args.audio, language=args.language, as_json=args.json)
+        run_transcribe(config, audio=args.audio, language=args.language, as_json=args.json, stt_provider=args.stt_provider)
     elif args.command == "transcribe-rag":
         run_transcribe_rag(
             config,
@@ -1180,6 +1215,7 @@ def main() -> None:
             top_k=args.top_k,
             debug=args.debug,
             load_index=args.load_index,
+            stt_provider=args.stt_provider,
         )
     elif args.command == "benchmark-stt":
         run_stt_benchmark_cli(
@@ -1203,6 +1239,7 @@ def main() -> None:
                 channels=args.channels,
                 language=args.language,
                 model=args.model,
+                stt_provider=args.stt_provider,
                 top_k=args.top_k,
                 size=args.size,
                 load_index=args.load_index,
@@ -1229,6 +1266,7 @@ def main() -> None:
                 channels=args.channels,
                 language=args.language,
                 model=args.model,
+                stt_provider=args.stt_provider,
                 top_k=args.top_k,
                 size=args.size,
                 load_index=args.load_index,

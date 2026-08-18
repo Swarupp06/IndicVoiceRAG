@@ -299,3 +299,218 @@ def test_all_stt_errors_share_base() -> None:
     assert issubclass(STTAudioError, STTError)
     assert issubclass(STTTranscriptionError, STTError)
     assert issubclass(STTConfigurationError, STTError)
+
+
+# --- Sarvam STT provider tests (mocked, no real API calls) ---
+from unittest.mock import MagicMock, patch
+
+from indicvoicerag.stt import SarvamSTT
+
+
+class TestSarvamSTT:
+    """Mocked unit tests for the Sarvam STT provider."""
+
+    def test_sarvam_stt_transcribe_hindi(self, tmp_path: Path) -> None:
+        """Test Hindi transcription with mocked Sarvam API."""
+        audio = _write_wav(tmp_path / "hindi.wav", seconds=1.0)
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "request_id": "test-123",
+            "transcript": "नमस्ते, आप कैसे हैं?",
+            "language_code": "hi-IN",
+            "language_probability": 0.95,
+        }
+
+        provider = SarvamSTT(api_key_env="SARVAM_API_KEY_TEST", model="saaras:v3", language_code="hi-IN")
+        with patch("indicvoicerag.stt.os.environ", {"SARVAM_API_KEY_TEST": "test_key_123"}):
+            with patch("indicvoicerag.stt.httpx.Client") as mock_client_cls:
+                mock_client = MagicMock()
+                mock_client_cls.return_value.__enter__.return_value = mock_client
+                mock_client.post.return_value = mock_response
+                result = provider.transcribe(audio)
+
+        assert result.text == "नमस्ते, आप कैसे हैं?"
+        assert result.language == "hi-IN"
+        assert result.language_probability == 0.95
+        assert result.model == "saaras:v3"
+        assert result.processing_time_ms > 0
+
+    def test_sarvam_stt_transcribe_english(self, tmp_path: Path) -> None:
+        """Test English transcription with mocked Sarvam API."""
+        audio = _write_wav(tmp_path / "english.wav", seconds=1.0)
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "request_id": "test-456",
+            "transcript": "Hello, how are you?",
+            "language_code": "en-IN",
+            "language_probability": 0.92,
+        }
+
+        provider = SarvamSTT(api_key_env="SARVAM_API_KEY_TEST", model="saaras:v3", language_code="en-IN")
+        with patch("indicvoicerag.stt.os.environ", {"SARVAM_API_KEY_TEST": "test_key_123"}):
+            with patch("indicvoicerag.stt.httpx.Client") as mock_client_cls:
+                mock_client = MagicMock()
+                mock_client_cls.return_value.__enter__.return_value = mock_client
+                mock_client.post.return_value = mock_response
+                result = provider.transcribe(audio)
+
+        assert result.text == "Hello, how are you?"
+        assert result.language == "en-IN"
+
+    def test_sarvam_stt_transcribe_with_metadata(self, tmp_path: Path) -> None:
+        """Test that transcribe returns TranscriptionResult with all metadata."""
+        audio = _write_wav(tmp_path / "meta.wav", seconds=2.0)
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "request_id": "test-789",
+            "transcript": "यह एक परीक्षण है",
+            "language_code": "hi-IN",
+            "language_probability": 0.88,
+        }
+
+        provider = SarvamSTT(api_key_env="SARVAM_API_KEY_TEST")
+        with patch("indicvoicerag.stt.os.environ", {"SARVAM_API_KEY_TEST": "test_key_123"}):
+            with patch("indicvoicerag.stt.httpx.Client") as mock_client_cls:
+                mock_client = MagicMock()
+                mock_client_cls.return_value.__enter__.return_value = mock_client
+                mock_client.post.return_value = mock_response
+                result = provider.transcribe(audio)
+
+        assert isinstance(result, TranscriptionResult)
+        assert result.text == "यह एक परीक्षण है"
+        assert result.duration_seconds == pytest.approx(2.0)
+        assert result.processing_time_ms > 0
+        assert result.audio_path is not None
+
+    def test_sarvam_stt_available_with_key(self) -> None:
+        """Test available() returns True when API key is set."""
+        with patch("indicvoicerag.stt.os.environ", {"SARVAM_API_KEY_TEST": "test_key_123"}):
+            provider = SarvamSTT(api_key_env="SARVAM_API_KEY_TEST")
+            assert provider.available() is True
+
+    def test_sarvam_stt_not_available_without_key(self) -> None:
+        """Test available() returns False when API key is missing."""
+        with patch("indicvoicerag.stt.os.environ", {}):
+            provider = SarvamSTT(api_key_env="SARVAM_API_KEY_TEST")
+            assert provider.available() is False
+
+    def test_sarvam_stt_missing_key_raises_config_error(self, tmp_path: Path) -> None:
+        """Test that missing API key raises STTConfigurationError."""
+        audio = _write_wav(tmp_path / "nokey.wav", seconds=1.0)
+        provider = SarvamSTT(api_key_env="SARVAM_API_KEY_TEST")
+        with patch("indicvoicerag.stt.os.environ", {}):
+            with pytest.raises(STTConfigurationError, match="Sarvam API key not found"):
+                provider.transcribe(audio)
+
+    def test_sarvam_stt_http_401_raises_auth_error(self, tmp_path: Path) -> None:
+        """Test that HTTP 401 raises STTTranscriptionError."""
+        audio = _write_wav(tmp_path / "auth.wav", seconds=1.0)
+        mock_response = MagicMock()
+        mock_response.status_code = 401
+        mock_response.text = "Unauthorized"
+
+        provider = SarvamSTT(api_key_env="SARVAM_API_KEY_TEST")
+        with patch("indicvoicerag.stt.os.environ", {"SARVAM_API_KEY_TEST": "bad_key"}):
+            with patch("indicvoicerag.stt.httpx.Client") as mock_client_cls:
+                mock_client = MagicMock()
+                mock_client_cls.return_value.__enter__.return_value = mock_client
+                mock_client.post.return_value = mock_response
+                with pytest.raises(STTTranscriptionError, match="authentication failed"):
+                    provider.transcribe(audio)
+
+    def test_sarvam_stt_http_500_raises_server_error(self, tmp_path: Path) -> None:
+        """Test that HTTP 500 raises STTTranscriptionError."""
+        audio = _write_wav(tmp_path / "server.wav", seconds=1.0)
+        mock_response = MagicMock()
+        mock_response.status_code = 500
+        mock_response.text = "Internal Server Error"
+
+        provider = SarvamSTT(api_key_env="SARVAM_API_KEY_TEST")
+        with patch("indicvoicerag.stt.os.environ", {"SARVAM_API_KEY_TEST": "test_key"}):
+            with patch("indicvoicerag.stt.httpx.Client") as mock_client_cls:
+                mock_client = MagicMock()
+                mock_client_cls.return_value.__enter__.return_value = mock_client
+                mock_client.post.return_value = mock_response
+                with pytest.raises(STTTranscriptionError, match="API error 500"):
+                    provider.transcribe(audio)
+
+    def test_sarvam_stt_timeout_raises_timeout_error(self, tmp_path: Path) -> None:
+        """Test that timeout raises STTTranscriptionError."""
+        import httpx as httpx_module
+        audio = _write_wav(tmp_path / "timeout.wav", seconds=1.0)
+
+        provider = SarvamSTT(api_key_env="SARVAM_API_KEY_TEST")
+        with patch("indicvoicerag.stt.os.environ", {"SARVAM_API_KEY_TEST": "test_key"}):
+            with patch("indicvoicerag.stt.httpx.Client") as mock_client_cls:
+                mock_client = MagicMock()
+                mock_client_cls.return_value.__enter__.return_value = mock_client
+                mock_client.post.side_effect = httpx_module.TimeoutException("Request timed out")
+                with pytest.raises(STTTranscriptionError, match="timed out"):
+                    provider.transcribe(audio)
+
+    def test_sarvam_stt_malformed_json_raises_parse_error(self, tmp_path: Path) -> None:
+        """Test that malformed JSON response raises STTTranscriptionError."""
+        audio = _write_wav(tmp_path / "malformed.wav", seconds=1.0)
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.side_effect = ValueError("Invalid JSON")
+
+        provider = SarvamSTT(api_key_env="SARVAM_API_KEY_TEST")
+        with patch("indicvoicerag.stt.os.environ", {"SARVAM_API_KEY_TEST": "test_key"}):
+            with patch("indicvoicerag.stt.httpx.Client") as mock_client_cls:
+                mock_client = MagicMock()
+                mock_client_cls.return_value.__enter__.return_value = mock_client
+                mock_client.post.return_value = mock_response
+                with pytest.raises(STTTranscriptionError, match="invalid JSON"):
+                    provider.transcribe(audio)
+
+    def test_sarvam_stt_transcription_result_schema_compat(self, tmp_path: Path) -> None:
+        """Test that SarvamSTT returns TranscriptionResult compatible with as_dict()."""
+        audio = _write_wav(tmp_path / "schema.wav", seconds=1.5)
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "request_id": "test-schema",
+            "transcript": "परीक्षण",
+            "language_code": "hi-IN",
+            "language_probability": 0.90,
+        }
+
+        provider = SarvamSTT(api_key_env="SARVAM_API_KEY_TEST")
+        with patch("indicvoicerag.stt.os.environ", {"SARVAM_API_KEY_TEST": "test_key"}):
+            with patch("indicvoicerag.stt.httpx.Client") as mock_client_cls:
+                mock_client = MagicMock()
+                mock_client_cls.return_value.__enter__.return_value = mock_client
+                mock_client.post.return_value = mock_response
+                result = provider.transcribe(audio)
+
+        payload = result.as_dict()
+        assert "text" in payload
+        assert "language" in payload
+        assert "language_probability" in payload
+        assert "duration_seconds" in payload
+        assert "processing_time_ms" in payload
+        assert "rtf" in payload
+        assert "model" in payload
+        assert "audio_path" in payload
+        assert payload["text"] == "परीक्षण"
+
+    def test_build_stt_provider_sarvam(self) -> None:
+        """Test that build_stt_provider creates SarvamSTT correctly."""
+        provider = build_stt_provider(
+            provider="sarvam",
+            model_name="saaras:v3",
+            api_key_env="SARVAM_API_KEY_TEST",
+            language_code="hi-IN",
+        )
+        assert isinstance(provider, SarvamSTT)
+        assert provider.model_name == "saaras:v3"
+
+    def test_normalize_stt_provider_name_sarvam(self) -> None:
+        """Test that Sarvam aliases are normalized correctly."""
+        assert normalize_stt_provider_name("sarvam") == "sarvam"
+        assert normalize_stt_provider_name("saaras") == "sarvam"
+        assert normalize_stt_provider_name("SARVAM") == "sarvam"

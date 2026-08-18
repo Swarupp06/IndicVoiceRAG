@@ -153,7 +153,7 @@ def test_listen_stt_failure_is_controlled(monkeypatch, capsys) -> None:
         def transcribe(self, audio_path, language=None):
             raise STTError("transcriber exploded")
 
-    monkeypatch.setattr("indicvoicerag.cli._build_stt_for_listen", lambda config, model: _FailSTT())
+    monkeypatch.setattr("indicvoicerag.cli._build_stt_for_listen", lambda config, model, provider=None: _FailSTT())
 
     rc = run_listen(_config(), recorder=_recorder(), harness=_FakeHarness(_response("x")))
 

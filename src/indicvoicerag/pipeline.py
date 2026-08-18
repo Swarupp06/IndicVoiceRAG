@@ -81,7 +81,7 @@ def build_harness(config: AppConfig, retrieve_fn) -> RAGHarness:
 
 
 def build_stt_from_config(config: AppConfig) -> STTProvider:
-    """Build the configured STT provider (mock | faster_whisper)."""
+    """Build the configured STT provider (mock | faster_whisper | sarvam)."""
     return build_stt_provider(
         provider=config.stt.provider,
         model_name=config.stt.model_name,
@@ -91,6 +91,8 @@ def build_stt_from_config(config: AppConfig) -> STTProvider:
         beam_size=config.stt.beam_size,
         vad_filter=config.stt.vad_filter,
         download_root=config.stt.download_root,
+        api_key_env=config.stt.api_key_env,
+        language_code=config.stt.language_code,
     )
 
 

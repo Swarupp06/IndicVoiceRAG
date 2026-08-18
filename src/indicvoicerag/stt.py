@@ -1,4 +1,4 @@
-"""Local Speech-to-Text abstraction (Phase 3A).
+"""Speech-to-Text abstraction (Phase 3A).
 
     audio file
         |
@@ -14,6 +14,7 @@
 Providers:
 - ``mock``           deterministic offline stub (tests / pipeline wiring only)
 - ``faster_whisper`` faster-whisper (CTranslate2) local models, CPU by default
+- ``sarvam``         Sarvam API-based STT (cloud, requires SARVAM_API_KEY)
 
 The result type is provider-independent, so a future Indic-specific model can
 be swapped in behind the same interface without touching the RAG harness.
@@ -21,12 +22,17 @@ be swapped in behind the same interface without touching the RAG harness.
 
 from __future__ import annotations
 
+import os
 import time
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from pathlib import Path
+from typing import Any
 
-from .audio import AudioPath, AudioError, load_audio
+import httpx
+
+from .audio import AudioError, AudioPath, load_audio
 
 # compute types supported by faster-whisper on CPU backends (CTranslate2)
 _CPU_COMPUTE_TYPES = ("int8", "int8_float32", "int8_float16", "int16", "float16", "float32")
@@ -311,11 +317,147 @@ class FasterWhisperSTT(STTProvider):
         }
 
 
+class SarvamSTT(STTProvider):
+    """Sarvam API-based STT provider (cloud, requires API key).
+
+    Uses the Sarvam speech-to-text REST API for transcription.
+    Supports 22 Indian languages + English with automatic language detection.
+    """
+
+    name = "sarvam"
+    _API_URL = "https://api.sarvam.ai/speech-to-text"
+
+    def __init__(
+        self,
+        api_key_env: str | None = "SARVAM_API_KEY",
+        model: str = "saaras:v3",
+        language_code: str | None = "unknown",
+        timeout: float = 30.0,
+    ):
+        self._api_key_env = api_key_env or "SARVAM_API_KEY"
+        self._model = model
+        self._language_code = language_code or "unknown"
+        self._timeout = timeout
+
+    @property
+    def model_name(self) -> str:
+        return self._model
+
+    def available(self) -> bool:
+        """Check if the API key environment variable is set."""
+        return bool(os.environ.get(self._api_key_env, "").strip())
+
+    def transcribe(self, audio_path: AudioPath, *, language: str | None = None) -> TranscriptionResult:
+        """Transcribe audio via Sarvam API."""
+        try:
+            info = load_audio(audio_path)
+        except AudioError as exc:
+            raise STTAudioError(str(exc)) from exc
+
+        if not self.available():
+            raise STTConfigurationError(
+                f"Sarvam API key not found in env var '{self._api_key_env}'. "
+                f"Set it with: export {self._api_key_env}=your_key_here"
+            )
+
+        api_key = os.environ[self._api_key_env].strip()
+        if not api_key:
+            raise STTConfigurationError(
+                f"Sarvam API key env var '{self._api_key_env}' is empty."
+            )
+
+        # Determine language code: override from transcribe() call takes precedence
+        lang_code = language or self._language_code or "unknown"
+
+        # Build multipart form data
+        audio_file = Path(audio_path)
+        if not audio_file.exists():
+            raise STTAudioError(f"Audio file not found: {audio_file}")
+
+        started = time.perf_counter()
+        try:
+            with httpx.Client(timeout=self._timeout) as client:
+                response = client.post(
+                    self._API_URL,
+                    headers={"api-subscription-key": api_key},
+                    files={"file": (audio_file.name, audio_file.read_bytes(), "audio/wav")},
+                    data={
+                        "model": self._model,
+                        "language_code": lang_code,
+                    },
+                )
+        except httpx.TimeoutException as exc:
+            raise STTTranscriptionError(
+                f"Sarvam API request timed out after {self._timeout}s: {exc}"
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise STTTranscriptionError(
+                f"Sarvam API request failed: {type(exc).__name__}: {exc}"
+            ) from exc
+
+        processing_ms = (time.perf_counter() - started) * 1000.0
+
+        # Handle HTTP errors
+        if response.status_code == 401:
+            raise STTTranscriptionError(
+                "Sarvam API authentication failed: invalid or missing API key."
+            )
+        elif response.status_code == 403:
+            raise STTTranscriptionError(
+                "Sarvam API access forbidden: check your API key permissions or quota."
+            )
+        elif response.status_code == 429:
+            raise STTTranscriptionError(
+                "Sarvam API rate limit exceeded: please retry after a delay."
+            )
+        elif response.status_code >= 400:
+            raise STTTranscriptionError(
+                f"Sarvam API error {response.status_code}: {response.text[:200]}"
+            )
+
+        # Parse response
+        try:
+            result = response.json()
+        except ValueError as exc:
+            raise STTTranscriptionError(
+                f"Sarvam API returned invalid JSON: {exc}"
+            ) from exc
+
+        transcript = result.get("transcript")
+        if transcript is None:
+            raise STTTranscriptionError(
+                f"Sarvam API response missing 'transcript' field: {result}"
+            )
+
+        detected_language = result.get("language_code", lang_code)
+        language_probability = float(result.get("language_probability", 0.0) or 0.0)
+
+        return TranscriptionResult(
+            text=transcript.strip(),
+            language=detected_language,
+            language_probability=language_probability,
+            duration_seconds=info.duration_seconds,
+            processing_time_ms=processing_ms,
+            model=self._model,
+            audio_path=str(audio_path),
+        )
+
+    def describe(self) -> dict[str, Any]:
+        return {
+            "provider": self.name,
+            "model": self._model,
+            "language_code": self._language_code,
+            "api_key_env": self._api_key_env,
+        }
+
+
 _STT_ALIASES = {
     "faster-whisper": "faster_whisper",
     "fasterwhisper": "faster_whisper",
     "whisper": "faster_whisper",
     "local": "faster_whisper",
+    "sarvam": "sarvam",
+    "saaras": "sarvam",
 }
 
 
@@ -333,8 +475,16 @@ def build_stt_provider(
     beam_size: int = 5,
     vad_filter: bool = False,
     download_root: str | None = None,
+    api_key_env: str | None = None,
+    language_code: str | None = "unknown",
 ) -> STTProvider:
-    """Build a single STT provider by name."""
+    """Build a single STT provider by name.
+
+    Provider-specific parameters:
+    - ``mock``: no extra params needed
+    - ``faster_whisper``: model_name, device, compute_type, language, beam_size, vad_filter, download_root
+    - ``sarvam``: api_key_env, language_code
+    """
     normalized = normalize_stt_provider_name(provider)
     if normalized == "mock":
         return MockSTT()
@@ -347,5 +497,11 @@ def build_stt_provider(
             beam_size=beam_size,
             vad_filter=vad_filter,
             download_root=download_root,
+        )
+    if normalized == "sarvam":
+        return SarvamSTT(
+            api_key_env=api_key_env or "SARVAM_API_KEY",
+            model=model_name or "saaras:v3",
+            language_code=language_code or "unknown",
         )
     raise ValueError(f"Unsupported STT provider: {provider}")
