@@ -4,6 +4,10 @@ Usage:
     python -m indicvoicerag.web
     # or
     uvicorn indicvoicerag.web:app --host 0.0.0.0 --port 8000
+
+Optional config selection (Codespaces deployment):
+    INDICVOICERAG_CONFIG=config.codespaces.toml python -m indicvoicerag.web
+When INDICVOICERAG_CONFIG is unset, AppConfig defaults are used.
 """
 
 from __future__ import annotations
@@ -18,14 +22,14 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from .config import load_config
+from .config import AppConfig, load_config
+from .dataset import DatasetInspector
 from .pipeline import (
     build_harness,
     build_retrieval_engine,
     build_stt_from_config,
     build_tts_from_config,
 )
-from .dataset import DatasetInspector
 
 app = FastAPI(title="IndicVoiceRAG", version="0.1.0")
 
@@ -37,9 +41,17 @@ _TTS_DIR.mkdir(exist_ok=True)
 _state: dict[str, Any] = {}
 
 
+def _load_app_config() -> AppConfig:
+    """Load AppConfig; INDICVOICERAG_CONFIG optionally selects a TOML file."""
+    config_path = os.environ.get("INDICVOICERAG_CONFIG")
+    if config_path:
+        return load_config(config_path)
+    return load_config()
+
+
 def _get_state() -> dict[str, Any]:
     if not _state:
-        config = load_config()
+        config = _load_app_config()
         inspector = DatasetInspector(config.dataset)
         engine = build_retrieval_engine(config)
 

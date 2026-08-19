@@ -1187,6 +1187,94 @@ For public deployment, the server must:
 2. Run `uvicorn indicvoicerag.web:app --host 0.0.0.0 --port 8000`
 3. Set the required environment variables
 
+### Codespaces deployment (HH Goa 2026 Task 2)
+
+The public demo uses `config.codespaces.toml`, which selects the production
+stack: persisted Goa FAISS index (`indexes/goa_pilot/`), multilingual-e5-small,
+Groq `llama-3.1-8b-instant`, Sarvam STT (model `saaras:v3`, hardcoded in
+`stt.py`), and MMS Hindi TTS. Guardrails are identical to `config.groq.toml`.
+
+**Select the config via environment variable (no code changes):**
+
+```bash
+export INDICVOICERAG_CONFIG=config.codespaces.toml
+```
+
+When `INDICVOICERAG_CONFIG` is unset, `web.py` keeps its default behavior
+(`load_config()` with AppConfig defaults).
+
+**API keys are Codespaces secrets — never commit them:**
+
+```bash
+gh secret set GROQ_API_KEY
+gh secret set SARVAM_API_KEY
+# or create them in the Codespaces UI: github.com/settings/codespaces -> Secrets
+```
+
+The application reads `GROQ_API_KEY` and `SARVAM_API_KEY` from environment
+variables only. `.env`, `.env.*` and all key values are gitignored; do not
+paste them into any committed file.
+
+**Start the server (port 8000):**
+
+```bash
+export INDICVOICERAG_CONFIG=config.codespaces.toml
+pip install -e ".[web]" && pip install torch --index-url https://download.pytorch.org/whl/cpu && pip install sentence-transformers faiss-cpu
+python -m indicvoicerag.web
+# or: uvicorn indicvoicerag.web:app --host 0.0.0.0 --port 8000
+```
+
+The Codespaces PORTS panel forwards port 8000; set the port visibility to
+**Public** to get the no-auth `https://<codespace-name>-8000.app.github.dev`
+URL.
+
+**The Goa index is local and gitignored — rebuild it in a fresh Codespace:**
+
+`indexes/` is ignored by `.git`, so a fresh Codespace has no
+`indexes/goa_pilot/goa.index`. The authoritative Goa corpus (37 documents,
+Phase 4B) is committed as `data/goa_pilot/normalized/goa_authoritative_corpus.jsonl`.
+Rebuild the persisted index from it:
+
+```bash
+cat > config.goa-build.toml <<'EOF'
+[dataset]
+local_sample_path = "data/goa_pilot/normalized/goa_authoritative_corpus.jsonl"
+sample_size = 37
+
+[chunking]
+strategy = "fixed"
+chunk_size = 120
+overlap = 20
+
+[embedding]
+provider = "sentence_transformers"
+model_name = "intfloat/multilingual-e5-small"
+dimension = 384
+normalize = true
+
+[vector]
+provider = "faiss"
+index_path = "indexes/goa_pilot/goa.index"
+metadata_path = "indexes/goa_pilot/goa.metadata.jsonl"
+
+[retrieval]
+top_k = 3
+EOF
+python -m indicvoicerag.cli --config config.goa-build.toml build-index --save
+rm config.goa-build.toml
+```
+
+Verify it before the demo:
+
+```bash
+python -m indicvoicerag.cli --config config.codespaces.toml retrieve \
+  --query "What are the famous churches of Old Goa?" --load-index --top-k 3
+```
+
+If the persisted Goa index is missing, `web.py` falls back to indexing a
+default sample (AppConfig defaults) so the server still starts — rebuild the
+Goa index for the real demo data.
+
 ### Known limitations
 
 - **One turn only** — this is not a continuous conversation loop.  Each `voice`

@@ -188,3 +188,45 @@ class TestTTSServing:
         client = TestClient(app)
         resp = client.get("/api/tts/nonexistent.wav")
         assert resp.status_code == 404
+
+
+class TestConfigSelection:
+    def test_load_config_with_defaults_when_env_unset(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("INDICVOICERAG_CONFIG", raising=False)
+        from indicvoicerag import web
+
+        with patch("indicvoicerag.web.load_config") as mock_load:
+            mock_load.return_value = MagicMock()
+            web._load_app_config()
+
+        mock_load.assert_called_once_with()
+
+    def test_load_config_uses_env_selected_path(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("INDICVOICERAG_CONFIG", "config.codespaces.toml")
+        from indicvoicerag import web
+
+        with patch("indicvoicerag.web.load_config") as mock_load:
+            mock_load.return_value = MagicMock()
+            web._load_app_config()
+
+        mock_load.assert_called_once_with("config.codespaces.toml")
+
+    def test_config_selection_does_not_expose_secrets(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Config selection forwards only the config path; API key values must
+        never be read, stored, or serialized by the selection logic."""
+        from dataclasses import asdict
+        import json
+
+        config_path = Path(__file__).resolve().parents[1] / "config.codespaces.toml"
+        monkeypatch.setenv("INDICVOICERAG_CONFIG", str(config_path))
+        monkeypatch.setenv("GROQ_API_KEY", "gsk_groq_secret_sentinel")
+        monkeypatch.setenv("SARVAM_API_KEY", "sarvam_secret_sentinel")
+        from indicvoicerag import web
+
+        cfg = web._load_app_config()
+
+        assert cfg.llm.api_key_env == "GROQ_API_KEY"
+        assert cfg.stt.api_key_env == "SARVAM_API_KEY"
+        serialized = json.dumps(asdict(cfg), ensure_ascii=False)
+        assert "gsk_groq_secret_sentinel" not in serialized
+        assert "sarvam_secret_sentinel" not in serialized
