@@ -3,212 +3,349 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>IndicVoiceRAG</title>
+<title>IndicVoiceRAG — Voice-enabled Multilingual RAG</title>
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:system-ui,-apple-system,sans-serif;background:#f5f5f5;color:#333;min-height:100vh}
-.container{max-width:720px;margin:0 auto;padding:24px 16px}
-h1{font-size:1.6em;margin-bottom:4px}
-.desc{color:#666;margin-bottom:20px;font-size:.95em}
-.card{background:#fff;border-radius:8px;padding:20px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.1)}
-label{display:block;font-weight:600;margin-bottom:6px;font-size:.9em}
-select,input[type=file]{width:100%;padding:8px;border:1px solid #ddd;border-radius:4px;font-size:.9em}
-.controls{display:flex;gap:12px;align-items:end}
-.controls>div{flex:1}
-.btn{background:#2563eb;color:#fff;border:none;padding:10px 24px;border-radius:6px;font-size:1em;cursor:pointer;width:100%;margin-top:12px}
-.btn:hover{background:#1d4ed8}
-.btn:disabled{background:#94a3b8;cursor:not-allowed}
-.rec-controls{display:flex;gap:8px;margin-top:8px}
-.rec-btn{padding:6px 14px;border-radius:4px;border:1px solid #ddd;cursor:pointer;font-size:.85em;background:#fff}
-.rec-btn.active{background:#ef4444;color:#fff;border-color:#ef4444}
-.result{display:none}
-.field{margin-bottom:12px}
-.field h3{font-size:.85em;color:#888;text-transform:uppercase;margin-bottom:4px}
-.field p,.field pre{font-size:.95em;line-height:1.5;white-space:pre-wrap;word-break:break-word}
-.sources{list-style:none;padding:0}
-.sources li{background:#f8f8f8;border-radius:4px;padding:8px 10px;margin-bottom:6px;font-size:.85em;border-left:3px solid #2563eb}
-.sources li .score{color:#2563eb;font-weight:600}
-.latency{display:flex;flex-wrap:wrap;gap:8px}
-.latency span{background:#f0f0f0;padding:4px 8px;border-radius:4px;font-size:.8em}
-.error{background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:12px;color:#dc2626}
-.audio-player{margin-top:8px}
-.audio-player audio{width:100%}
-#status{font-size:.85em;color:#666;margin-top:8px}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#080d18;
+  --bg2:#0e1525;
+  --sf:rgba(255,255,255,.04);
+  --sf2:rgba(255,255,255,.06);
+  --bd:rgba(255,255,255,.08);
+  --bd2:rgba(255,255,255,.12);
+  --coral:#e8664a;
+  --cg:#f09060;
+  --cd:rgba(232,102,74,.10);
+  --teal:#3ad4c8;
+  --td:rgba(58,212,200,.08);
+  --tx:#eaf0fa;
+  --tx2:#8e9baf;
+  --tx3:#5a6680;
+  --ok:#42d392;
+  --od:rgba(66,211,146,.10);
+  --wn:#f0c050;
+  --wd:rgba(240,192,80,.10);
+  --er:#ef5350;
+  --ed:rgba(239,83,80,.10);
+  --r:14px;
+  --r2:10px;
+  --rp:24px
+}
+html{scroll-behavior:smooth}
+body{font-family:'Inter','SF Pro Display','Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--tx);min-height:100vh;line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 80% 60% at 50% 45%,rgba(232,102,74,.04) 0%,transparent 60%),radial-gradient(ellipse 60% 50% at 20% 80%,rgba(58,212,200,.03) 0%,transparent 50%);pointer-events:none;z-index:0}
+
+.topbar{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:14px 28px;background:rgba(8,13,24,.85);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid var(--bd)}
+.topbar-left{display:flex;align-items:center;gap:14px}
+.wm{display:flex;flex-direction:column;line-height:1.1}
+.wm-m{font-size:.72rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--tx)}
+.wm-s{font-size:.56rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--coral);margin-top:1px}
+.topbar-title{font-size:.92rem;font-weight:600;color:var(--tx2)}
+.topbar-right .sp{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:var(--rp);background:var(--sf);border:1px solid var(--bd);font-size:.68rem;font-weight:600;color:var(--tx2);letter-spacing:.04em}
+.sp .sd{width:6px;height:6px;border-radius:50%;background:var(--ok);flex-shrink:0}
+
+.hero{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:90px 24px 60px;text-align:center;transition:all .5s cubic-bezier(.4,0,.2,1)}
+.hero.compact{min-height:auto;padding:72px 24px 16px}
+.hero.compact .hero-main{display:none}
+.hero-main{max-width:640px;margin-top:24px}
+.hero-main h1{font-size:2.8rem;font-weight:800;letter-spacing:-.04em;line-height:1.08;margin-bottom:14px}
+.hero-main h1 .gd{background:linear-gradient(135deg,var(--tx) 30%,var(--cg) 70%,var(--coral) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.hero-main .sub{font-size:1.05rem;color:var(--tx2);font-weight:400;line-height:1.55}
+
+.mw{position:relative;margin:36px auto 20px;width:150px;height:150px}
+.mb{position:absolute;inset:-10px;border-radius:50%;background:radial-gradient(circle,rgba(232,102,74,.08) 0%,transparent 70%);pointer-events:none;transition:opacity .3s;opacity:.5}
+.mb.on{opacity:1}
+.mic-btn{position:relative;z-index:2;width:150px;height:150px;border-radius:50%;border:2px solid rgba(255,255,255,.10);background:linear-gradient(160deg,rgba(255,255,255,.07) 0%,rgba(255,255,255,.02) 100%);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .35s cubic-bezier(.4,0,.2,1);box-shadow:0 8px 40px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.05)}
+.mic-btn:hover{border-color:rgba(232,102,74,.35);box-shadow:0 8px 40px rgba(0,0,0,.4),0 0 50px rgba(232,102,74,.10);transform:scale(1.02)}
+.mic-btn.rec{border-color:var(--coral);background:linear-gradient(160deg,rgba(232,102,74,.22) 0%,rgba(232,102,74,.08) 100%);box-shadow:0 8px 40px rgba(232,102,74,.18)}
+.mic-btn.rec svg{stroke:var(--coral)}
+.mic-btn svg{width:52px;height:52px;stroke:var(--tx);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transition:stroke .25s}
+
+.rp2{position:absolute;top:50%;left:50%;width:150px;height:150px;border-radius:50%;border:1.5px solid var(--coral);transform:translate(-50%,-50%) scale(1);opacity:0;pointer-events:none;z-index:1}
+.mic-btn.rec~.rp2{animation:rip 2s ease-out infinite}
+.mic-btn.rec~.rp2:nth-of-type(2){animation-delay:.65s}
+.mic-btn.rec~.rp2:nth-of-type(3){animation-delay:1.3s}
+@keyframes rip{0%{transform:translate(-50%,-50%) scale(1);opacity:.45}100%{transform:translate(-50%,-50%) scale(2.4);opacity:0}}
+
+.mst{font-size:.92rem;color:var(--tx2);margin-top:16px;font-weight:500;min-height:1.3em}
+.mst.rec{color:var(--coral);font-weight:600}
+.mst.done{color:var(--ok);font-weight:600}
+
+.chips{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:16px 0 28px;max-width:560px}
+.chip{background:var(--sf);border:1px solid var(--bd);border-radius:var(--rp);padding:8px 18px;font-size:.84rem;color:var(--tx2);cursor:pointer;transition:all .2s;white-space:nowrap}
+.chip:hover{border-color:rgba(232,102,74,.3);color:var(--tx);background:var(--cd)}
+
+.ur{font-size:.84rem;color:var(--tx3);margin-bottom:22px}
+.ur a{color:var(--cg);text-decoration:none;cursor:pointer;border-bottom:1px dashed rgba(240,144,96,.35)}
+.ur a:hover{color:var(--coral)}
+#audio-file{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+.uz{display:none;margin:0 auto 22px;max-width:380px;border:1.5px dashed var(--bd2);border-radius:var(--r);padding:18px;text-align:center;background:var(--sf)}
+.uz.vis{display:block}
+.uz-l{font-size:.86rem;color:var(--tx2);margin-bottom:10px}
+.uz-b{display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,var(--coral),var(--cg));color:#fff;border:none;padding:9px 18px;border-radius:var(--r2);font-size:.84rem;font-weight:600;cursor:pointer;transition:all .2s}
+.uz-b:hover{box-shadow:0 4px 20px rgba(232,102,74,.25)}
+.uz-h{font-size:.74rem;color:var(--tx3);margin-top:8px}
+.uz-f{font-size:.84rem;color:var(--cg);font-weight:600;margin-top:8px;display:none}
+.uz-f.show{display:block}
+
+.stg{display:flex;gap:16px;justify-content:center;margin-bottom:24px;flex-wrap:wrap}
+.stg>div{display:flex;align-items:center;gap:7px}
+.stg label{font-size:.72rem;color:var(--tx3);font-weight:700;text-transform:uppercase;letter-spacing:.07em}
+.stg select{padding:7px 12px;border:1px solid var(--bd2);border-radius:var(--r2);font-size:.84rem;background:var(--sf2);color:var(--tx);cursor:pointer;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.stg select:focus{outline:none;border-color:rgba(232,102,74,.4)}
+.stg select option{background:#131b2e;color:var(--tx)}
+
+.aw{width:100%;max-width:360px}
+.ba{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:16px 28px;background:linear-gradient(135deg,var(--coral),var(--cg));color:#fff;border:none;border-radius:var(--r);font-size:1.05rem;font-weight:700;cursor:pointer;transition:all .25s;box-shadow:0 4px 24px rgba(232,102,74,.25)}
+.ba:hover:not(:disabled){box-shadow:0 6px 32px rgba(232,102,74,.35);transform:translateY(-2px)}
+.ba:active:not(:disabled){transform:translateY(0)}
+.ba:disabled{background:rgba(255,255,255,.08);color:var(--tx3);box-shadow:none;cursor:not-allowed}
+.ba .ar{transition:transform .15s;font-size:1.1em}
+.ba:hover:not(:disabled) .ar{transform:translateX(3px)}
+#status{font-size:.84rem;color:var(--tx3);text-align:center;margin-top:12px;min-height:1.2em}
+
+.ld{display:none;text-align:center;padding:120px 24px;position:relative;z-index:1}
+.ld.vis{display:block}
+.orb{width:60px;height:60px;margin:0 auto 28px;border-radius:50%;background:linear-gradient(135deg,var(--coral),var(--cg));animation:op 1.4s ease-in-out infinite;box-shadow:0 0 50px rgba(232,102,74,.3)}
+@keyframes op{0%,100%{transform:scale(1);opacity:.65}50%{transform:scale(1.15);opacity:1}}
+.ld-d{display:flex;gap:6px;justify-content:center;margin-bottom:18px}
+.ld-d span{width:7px;height:7px;border-radius:50%;background:var(--coral);animation:df .8s ease-in-out infinite}
+.ld-d span:nth-child(2){animation-delay:.15s}
+.ld-d span:nth-child(3){animation-delay:.3s}
+@keyframes df{0%,100%{transform:translateY(0);opacity:.3}50%{transform:translateY(-10px);opacity:1}}
+.ld-t{font-size:1rem;color:var(--tx2);font-weight:500;min-height:1.4em}
+.ld-t .lt{animation:tc 4.5s linear infinite}
+.ld-t .lt:nth-child(1){animation-delay:0s}
+.ld-t .lt:nth-child(2){animation-delay:1.5s}
+.ld-t .lt:nth-child(3){animation-delay:3s}
+@keyframes tc{0%,28%{opacity:1}33%,95%{opacity:0}100%{opacity:1}}
+
+.spn{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spi .6s linear infinite}
+@keyframes spi{to{transform:rotate(360deg)}}
+
+.res{display:none;max-width:1140px;margin:0 auto;padding:24px 20px 64px;position:relative;z-index:1}
+.res.vis{display:block}
+.rg{display:grid;grid-template-columns:1fr 320px;gap:24px;align-items:start}
+.rm{min-width:0}
+.rs{min-width:0}
+
+.cd2{background:var(--sf);border:1px solid var(--bd);border-radius:var(--r);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:0 4px 24px rgba(0,0,0,.15);overflow:hidden}
+.cdi{padding:28px 30px}
+.cl{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--tx3);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.cl::before{content:'';width:16px;height:2px;background:var(--coral);border-radius:1px;flex-shrink:0}
+.at{font-size:1.18rem;line-height:1.8;color:var(--tx);white-space:pre-wrap;word-break:break-word}
+.tt{font-size:.92rem;color:var(--tx2);white-space:pre-wrap;word-break:break-word;line-height:1.65}
+
+.gr{display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap}
+.gb{display:inline-flex;align-items:center;gap:6px;padding:6px 16px;border-radius:var(--rp);font-size:.84rem;font-weight:600}
+.gb.g{background:var(--od);color:var(--ok);border:1px solid rgba(66,211,146,.2)}
+.gb.u{background:var(--wd);color:var(--wn);border:1px solid rgba(240,192,80,.2)}
+.gb .gd2{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.gb.g .gd2{background:var(--ok)}
+.gb.u .gd2{background:var(--wn)}
+.gt{padding:4px 14px;border-radius:var(--rp);font-size:.76rem;font-weight:600;background:var(--wd);color:var(--wn);border:1px solid rgba(240,192,80,.15)}
+
+.tc2 .th{font-size:.82rem;font-weight:700;color:var(--cg);display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.tc2 audio{width:100%;height:40px;border-radius:8px}
+
+.sc{margin-bottom:16px}
+.sc .cl{justify-content:space-between}
+.sc .sct{font-weight:400;letter-spacing:0;color:var(--tx2)}
+
+.sl{list-style:none;padding:0;margin:0}
+.si{border-bottom:1px solid rgba(255,255,255,.05);overflow:hidden}
+.si:last-child{border-bottom:none}
+.sh{display:flex;align-items:center;gap:10px;padding:10px 0;cursor:pointer;user-select:none}
+.sh:hover{background:rgba(255,255,255,.03)}
+.sr{width:36px;height:36px;border-radius:50%;border:2.5px solid var(--coral);display:flex;align-items:center;justify-content:center;flex-shrink:0;position:relative}
+.sr svg{position:absolute;width:36px;height:36px;transform:rotate(-90deg)}
+.sr circle{fill:none;stroke-width:2.5;stroke-linecap:round}
+.sr .rbg{stroke:rgba(255,255,255,.06)}
+.sr .rfg{stroke:var(--coral);transition:stroke-dashoffset .4s ease}
+.sr .rpct{font-size:.65rem;font-weight:700;color:var(--tx)}
+.spv{font-size:.82rem;color:var(--tx2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:60px}
+.scv{font-size:.6rem;color:var(--tx3);transition:transform .2s;flex-shrink:0}
+.si.open .scv{transform:rotate(180deg)}
+.sd2{display:none;padding:0 0 12px 46px;font-size:.82rem;color:var(--tx2);line-height:1.55;white-space:pre-wrap;word-break:break-word}
+.sd2 strong{color:var(--tx);font-size:.78rem}
+.si.open .sd2{display:block}
+
+.lg{display:flex;flex-wrap:wrap;gap:8px}
+.lp{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:var(--rp);background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.06);font-size:.78rem}
+.lp .lk{color:var(--tx3);font-weight:600;text-transform:uppercase;letter-spacing:.05em;font-size:.68rem}
+.lp .lv{color:var(--tx);font-weight:700}
+.lp.lt{background:var(--cd);border-color:rgba(232,102,74,.2)}
+.lp.lt .lv{color:var(--cg)}
+
+.eb{background:var(--ed);border:1px solid rgba(239,83,80,.2);border-radius:var(--r);padding:20px 24px;margin-bottom:20px}
+.eb .et{font-size:.9rem;font-weight:700;color:var(--er);margin-bottom:4px}
+.eb .em{font-size:.86rem;color:var(--er);opacity:.85}
+
+.bb{display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(255,255,255,.10);background:var(--sf);color:var(--tx2);padding:8px 18px;border-radius:var(--rp);font-size:.84rem;font-weight:600;cursor:pointer;margin-bottom:22px;transition:all .15s;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.bb:hover{border-color:rgba(232,102,74,.3);color:var(--tx);background:var(--cd)}
+
+footer{text-align:center;padding:24px 0;color:var(--tx3);font-size:.72rem;position:relative;z-index:1;letter-spacing:.04em}
+
+@media(max-width:860px){.rg{grid-template-columns:1fr;gap:16px}.hero-main h1{font-size:2.2rem}}
+@media(max-width:640px){.hero{padding:80px 16px 48px}.hero.compact{padding:64px 16px 10px}.hero-main h1{font-size:1.8rem}.mic-btn{width:110px;height:110px}.mic-btn svg{width:36px;height:36px}.rp2{width:110px;height:110px}.chips{flex-direction:column;align-items:center}.stg{flex-direction:column;align-items:center}.cdi{padding:20px 18px}.at{font-size:1.05rem}.topbar{padding:10px 16px}.topbar-title{display:none}}
 </style>
 </head>
 <body>
-<div class="container">
-  <h1>IndicVoiceRAG</h1>
-  <p class="desc">Voice-enabled multilingual RAG using MSMARCO-XI</p>
 
-  <div class="card">
-    <div class="controls">
-      <div>
-        <label for="stt-provider">STT Provider</label>
-        <select id="stt-provider">
-          <option value="sarvam" selected>Sarvam (cloud)</option>
-        </select>
-      </div>
-      <div>
-        <label for="language">Language</label>
-        <select id="language">
-          <option value="hi-IN" selected>Hindi</option>
-          <option value="en-IN">English</option>
-          <option value="auto">Auto-detect</option>
-        </select>
-      </div>
-    </div>
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="wm"><span class="wm-m">GOA</span><span class="wm-s">VOICE RAG</span></div>
+    <span class="topbar-title">IndicVoiceRAG</span>
+  </div>
+  <div class="topbar-right"><span class="sp"><span class="sd"></span>SYSTEM READY</span></div>
+</div>
 
-    <label for="audio-file" style="margin-top:16px">Upload audio file (WAV preferred)</label>
-    <input type="file" id="audio-file" accept="audio/*,.wav,.mp3,.ogg,.webm">
-
-    <div style="text-align:center;color:#888;margin:12px 0">— or —</div>
-
-    <label>Record from microphone</label>
-    <div class="rec-controls">
-      <button class="rec-btn" id="rec-btn" onclick="toggleRecord()">Start Recording</button>
-      <span id="rec-status" style="font-size:.85em;color:#666;align-self:center"></span>
-    </div>
-
-    <button class="btn" id="submit-btn" onclick="submitAudio()" disabled>Ask</button>
-    <div id="status"></div>
+<div class="hero" id="hero">
+  <div class="hero-main">
+    <h1><span class="gd">Ask Goa anything.</span></h1>
+    <p class="sub">Speak your question and get a grounded answer from Goa's knowledge base.</p>
   </div>
 
-  <div class="card result" id="result">
-    <div class="field" id="err-field" style="display:none"><div class="error" id="err-text"></div></div>
-    <div class="field"><h3>Transcription</h3><p id="transcription">—</p></div>
-    <div class="field"><h3>Answer</h3><p id="answer">—</p></div>
-    <div class="field" id="sources-field" style="display:none"><h3>Sources</h3><ul class="sources" id="sources"></ul></div>
-    <div class="field"><h3>Grounding</h3><p id="grounding">—</p></div>
-    <div class="field" id="tts-field" style="display:none"><h3>Audio Answer</h3><div class="audio-player"><audio id="tts-audio" controls></audio></div></div>
-    <div class="field"><h3>Latency</h3><div class="latency" id="latency"></div></div>
+  <div class="mw">
+    <div class="mb" id="mic-bg"></div>
+    <button class="mic-btn" id="rec-btn" onclick="toggleRecord()" type="button" aria-label="Record audio">
+      <svg viewBox="0 0 24 24"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+    </button>
+    <div class="rp2"></div><div class="rp2"></div><div class="rp2"></div>
+    <div class="mst" id="rec-status">Tap to speak</div>
+  </div>
+
+  <div class="chips" id="chips">
+    <span class="chip" onclick="fillChip(this)">Oldest churches in Old Goa</span>
+    <span class="chip" onclick="fillChip(this)">Best beaches in Goa</span>
+    <span class="chip" onclick="fillChip(this)">Goa me ghumne ki jagah</span>
+  </div>
+
+  <input type="file" id="audio-file" accept="audio/*,.wav,.mp3,.ogg,.webm">
+  <div class="ur">or <a onclick="toggleUpload()">upload an audio file</a></div>
+  <div class="uz" id="audio-zone">
+    <div class="uz-l">Choose an audio file</div>
+    <label class="uz-b" for="audio-file">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      Choose audio
+    </label>
+    <div class="uz-h">WAV preferred</div>
+    <div class="uz-f" id="upload-file-name"></div>
+  </div>
+
+  <div class="stg">
+    <div><label for="stt-provider">STT</label><select id="stt-provider"><option value="sarvam" selected>Sarvam (cloud)</option></select></div>
+    <div><label for="language">Language</label><select id="language"><option value="hi-IN" selected>Hindi</option><option value="en-IN">English</option><option value="auto">Auto-detect</option></select></div>
+  </div>
+
+  <div class="aw">
+    <button class="ba" id="submit-btn" onclick="submitAudio()" disabled type="button">
+      <span id="ask-btn-text">ASK GOA</span>
+      <span class="ar">&rarr;</span>
+    </button>
+    <div id="status"></div>
   </div>
 </div>
 
+<div class="ld" id="loading-state">
+  <div class="orb"></div>
+  <div class="ld-d"><span></span><span></span><span></span></div>
+  <div class="ld-t">
+    <span class="lt">Thinking about Goa&hellip;</span>
+    <span class="lt">Listening&hellip;</span>
+    <span class="lt">Finding relevant information&hellip;</span>
+  </div>
+</div>
+
+<div class="res" id="result">
+  <button class="bb" onclick="backToHero()" type="button">&larr; Ask another question</button>
+  <div class="rg">
+    <div class="rm">
+      <div id="err-field" style="display:none"><div class="eb"><div class="et">Something went wrong</div><div class="em" id="err-text"></div></div></div>
+      <div class="cd2" style="margin-bottom:16px"><div class="cdi"><div class="cl">Transcription</div><div class="tt" id="transcription">&mdash;</div></div></div>
+      <div class="cd2" style="margin-bottom:16px"><div class="cdi"><div class="cl">Answer</div><div class="at" id="answer">&mdash;</div></div></div>
+      <div class="gr" id="grounding">&mdash;</div>
+      <div id="tts-field" style="display:none"><div class="cd2 tc2"><div class="cdi"><div class="th"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 010 14.14"/><path d="M15.54 8.46a5 5 0 010 7.07"/></svg>Listen to answer</div><audio id="tts-audio" controls></audio></div></div></div>
+    </div>
+    <div class="rs">
+      <div class="cd2 sc" id="sources-field" style="display:none"><div class="cdi"><div class="cl">Sources <span class="sct" id="sources-count"></span></div><ul class="sl" id="sources"></ul></div></div>
+      <div class="cd2 sc"><div class="cdi"><div class="cl">Performance</div><div class="lg" id="latency"></div></div></div>
+    </div>
+  </div>
+</div>
+
+<footer>IndicVoiceRAG &middot; Goa 2026</footer>
+
 <script>
-let mediaRecorder = null;
-let audioChunks = [];
-let recordedBlob = null;
+var mediaRecorder=null,audioChunks=[],recordedBlob=null;
+var audioFile=document.getElementById('audio-file'),recBtn=document.getElementById('rec-btn'),submitBtn=document.getElementById('submit-btn'),recStatus=document.getElementById('rec-status'),audioZone=document.getElementById('audio-zone'),uploadFileName=document.getElementById('upload-file-name'),askBtnText=document.getElementById('ask-btn-text'),micBg=document.getElementById('mic-bg');
 
-const audioFile = document.getElementById('audio-file');
-const recBtn = document.getElementById('rec-btn');
-const submitBtn = document.getElementById('submit-btn');
-const recStatus = document.getElementById('rec-status');
+audioFile.addEventListener('change',function(){if(audioFile.files.length>0){recordedBlob=null;uploadFileName.textContent=audioFile.files[0].name;uploadFileName.classList.add('show');audioZone.classList.add('has-audio');recStatus.textContent='File selected';recStatus.className='done';updateSubmitState()}});
+function toggleUpload(){audioZone.classList.toggle('vis')}
+function updateSubmitState(){submitBtn.disabled=!(audioFile.files.length>0||recordedBlob)}
 
-audioFile.addEventListener('change', () => {
-  if (audioFile.files.length > 0) { recordedBlob = null; updateSubmitState(); }
-});
-
-function updateSubmitState() {
-  submitBtn.disabled = !(audioFile.files.length > 0 || recordedBlob);
+async function toggleRecord(){
+  if(mediaRecorder&&mediaRecorder.state==='recording'){mediaRecorder.stop();return}
+  try{
+    var stream=await navigator.mediaDevices.getUserMedia({audio:true});audioChunks=[];
+    mediaRecorder=new MediaRecorder(stream);
+    mediaRecorder.ondataavailable=function(e){if(e.data.size>0)audioChunks.push(e.data)};
+    mediaRecorder.onstop=function(){recordedBlob=new Blob(audioChunks,{type:'audio/webm'});recStatus.textContent='\u2713 Recorded '+(recordedBlob.size/1024).toFixed(0)+' KB';recStatus.className='done';recBtn.classList.remove('rec');micBg.classList.remove('on');audioFile.value='';uploadFileName.classList.remove('show');audioZone.classList.remove('has-audio');stream.getTracks().forEach(function(t){t.stop()});updateSubmitState()};
+    mediaRecorder.start();recBtn.classList.add('rec');micBg.classList.add('on');recStatus.textContent='Listening\u2026';recStatus.className='rec';
+  }catch(e){recStatus.textContent='Microphone access denied';recStatus.className=''}
 }
 
-async function toggleRecord() {
-  if (mediaRecorder && mediaRecorder.state === 'recording') {
-    mediaRecorder.stop();
-    recBtn.textContent = 'Start Recording';
-    recBtn.classList.remove('active');
-    return;
-  }
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    audioChunks = [];
-    mediaRecorder = new MediaRecorder(stream);
-    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
-    mediaRecorder.onstop = () => {
-      recordedBlob = new Blob(audioChunks, { type: 'audio/webm' });
-      recStatus.textContent = `Recorded ${(recordedBlob.size / 1024).toFixed(0)} KB`;
-      stream.getTracks().forEach(t => t.stop());
-      updateSubmitState();
-    };
-    mediaRecorder.start();
-    recBtn.textContent = 'Stop Recording';
-    recBtn.classList.add('active');
-    recStatus.textContent = 'Recording...';
-  } catch (e) {
-    recStatus.textContent = 'Mic access denied';
-  }
-}
+function fillChip(el){recStatus.textContent='Use the microphone or upload for: '+el.textContent;recStatus.className=''}
 
-async function submitAudio() {
-  const file = audioFile.files[0] || recordedBlob;
-  if (!file) return;
-
-  submitBtn.disabled = true;
-  submitBtn.textContent = 'Processing...';
-  document.getElementById('status').textContent = 'Sending audio...';
-  document.getElementById('result').style.display = 'none';
-
-  const formData = new FormData();
-  formData.append('audio', file, file.name || 'recording.webm');
-  formData.append('stt_provider', document.getElementById('stt-provider').value);
-  formData.append('language', document.getElementById('language').value);
-
-  try {
-    document.getElementById('status').textContent = 'Transcribing + Retrieving + Generating...';
-    const resp = await fetch('/api/ask', { method: 'POST', body: formData });
-    const data = await resp.json();
-
-    document.getElementById('result').style.display = 'block';
-    document.getElementById('status').textContent = '';
-
-    if (data.error) {
-      document.getElementById('err-field').style.display = 'block';
-      document.getElementById('err-text').textContent = data.error;
-      document.getElementById('transcription').textContent = data.transcription || '—';
-      document.getElementById('answer').textContent = '—';
-    } else {
-      document.getElementById('err-field').style.display = 'none';
-      document.getElementById('transcription').textContent = data.transcription || '—';
-
-      const rag = data.rag || {};
-      document.getElementById('answer').textContent = rag.answer || '—';
-
-      const grounded = rag.grounded;
-      const confidence = rag.confidence;
-      document.getElementById('grounding').textContent =
-        `Grounded: ${grounded !== undefined ? (grounded ? 'Yes' : 'No') : '—'} | Confidence: ${confidence !== undefined ? (confidence * 100).toFixed(1) + '%' : '—'}`;
-      if (rag.guardrail) {
-        document.getElementById('grounding').textContent += ` | Guardrail: ${rag.guardrail}`;
-      }
-
-      const sourcesEl = document.getElementById('sources');
-      const sources = rag.sources || [];
-      if (sources.length > 0) {
-        document.getElementById('sources-field').style.display = 'block';
-        sourcesEl.innerHTML = sources.map(s =>
-          `<li><span class="score">[${(s.score * 100).toFixed(0)}%]</span> ${s.excerpt || s.document_id}</li>`
-        ).join('');
-      } else {
-        document.getElementById('sources-field').style.display = 'none';
-      }
-
-      if (data.tts_audio_url) {
-        document.getElementById('tts-field').style.display = 'block';
-        document.getElementById('tts-audio').src = data.tts_audio_url;
-      } else {
-        document.getElementById('tts-field').style.display = 'none';
-      }
-
-      const latEl = document.getElementById('latency');
-      const items = [];
-      if (data.stt_ms) items.push(`STT: ${data.stt_ms}ms`);
-      if (data.rag_total_ms) items.push(`RAG: ${data.rag_total_ms}ms`);
-      if (data.tts_ms) items.push(`TTS: ${data.tts_ms}ms`);
-      if (data.total_ms) items.push(`Total: ${data.total_ms}ms`);
-      latEl.innerHTML = items.map(i => `<span>${i}</span>`).join('');
+async function submitAudio(){
+  var file=audioFile.files[0]||recordedBlob;if(!file)return;
+  submitBtn.disabled=true;askBtnText.textContent='Processing';
+  var sp=document.createElement('span');sp.className='spn';submitBtn.appendChild(sp);
+  document.querySelector('.ba .ar').style.display='none';
+  document.getElementById('result').classList.remove('vis');
+  document.getElementById('loading-state').classList.add('vis');
+  var formData=new FormData();
+  formData.append('audio',file,file.name||'recording.webm');
+  formData.append('stt_provider',document.getElementById('stt-provider').value);
+  formData.append('language',document.getElementById('language').value);
+  try{
+    var resp=await fetch('/api/ask',{method:'POST',body:formData});var data;
+    try{data=await resp.json()}catch(_){throw new Error('Server returned an unexpected response. Please try again.')}
+    if(!resp.ok&&!data.error){data.error=data.detail||('Request failed (HTTP '+resp.status+')')}
+    document.getElementById('loading-state').classList.remove('vis');
+    document.getElementById('result').classList.add('vis');
+    document.getElementById('hero').classList.add('compact');
+    if(data.error){document.getElementById('err-field').style.display='block';document.getElementById('err-text').textContent=data.error;document.getElementById('transcription').textContent=data.transcription||'\u2014';document.getElementById('answer').textContent='\u2014'}
+    else{
+      document.getElementById('err-field').style.display='none';
+      document.getElementById('transcription').textContent=data.transcription||'\u2014';
+      var rag=data.rag||{};document.getElementById('answer').textContent=rag.answer||'\u2014';
+      var grounded=rag.grounded,confidence=rag.confidence,groundEl=document.getElementById('grounding');
+      var gClass=grounded?'gb g':'gb u';var gText=grounded!==undefined?(grounded?'GROUNDED':'NOT GROUNDED'):'\u2014';
+      var cText=confidence!==undefined?(confidence*100).toFixed(1)+'% confidence':'';
+      var guardrailHtml=rag.guardrail?'<span class="gt">'+rag.guardrail+'</span>':'';
+      groundEl.innerHTML='<span class="'+gClass+'"><span class="gd2"></span>'+gText+(cText?' \u00b7 '+cText:'')+'</span>'+guardrailHtml;
+      var sourcesEl=document.getElementById('sources'),sources=rag.sources||[];
+      if(sources.length>0){document.getElementById('sources-field').style.display='block';document.getElementById('sources-count').textContent=sources.length+' sources';
+        sourcesEl.innerHTML=sources.map(function(s,i){var pct=(s.score*100).toFixed(0);var circ=2*Math.PI*13;var offset=circ-(circ*s.score);return '<li class="si" data-idx="'+i+'"><div class="sh" onclick="toggleSource('+i+')"><div class="sr"><svg viewBox="0 0 36 36"><circle class="rbg" cx="18" cy="18" r="13"/><circle class="rfg" cx="18" cy="18" r="13" stroke-dasharray="'+circ+'" stroke-dashoffset="'+offset+'"/></svg><span class="rpct">'+pct+'%</span></div><span class="spv">'+(s.excerpt||s.document_id||'')+'</span><span class="scv">&#9662;</span></div><div class="sd2"><strong>'+(s.document_id||'')+(s.chunk_id?' \u00b7 '+s.chunk_id:'')+'</strong><br>'+(s.excerpt||'')+'</div></li>'}).join('')}
+      else{document.getElementById('sources-field').style.display='none';document.getElementById('sources-count').textContent=''}
+      if(data.tts_audio_url){document.getElementById('tts-field').style.display='block';document.getElementById('tts-audio').src=data.tts_audio_url}else{document.getElementById('tts-field').style.display='none'}
+      var latEl=document.getElementById('latency'),rows=[];
+      if(data.stt_ms)rows.push({l:'STT',v:(data.stt_ms/1000).toFixed(2)+'s',c:''});
+      if(data.rag_total_ms)rows.push({l:'RAG',v:(data.rag_total_ms/1000).toFixed(2)+'s',c:''});
+      if(data.tts_ms)rows.push({l:'TTS',v:(data.tts_ms/1000).toFixed(2)+'s',c:''});
+      if(data.total_ms)rows.push({l:'Total',v:(data.total_ms/1000).toFixed(2)+'s',c:'lt'});
+      latEl.innerHTML=rows.map(function(r){return '<span class="lp '+r.c+'"><span class="lk">'+r.l+'</span><span class="lv">'+r.v+'</span></span>'}).join('');
+      window.scrollTo({top:0,behavior:'smooth'})
     }
-  } catch (e) {
-    document.getElementById('result').style.display = 'block';
-    document.getElementById('err-field').style.display = 'block';
-    document.getElementById('err-text').textContent = `Request failed: ${e.message}`;
-    document.getElementById('status').textContent = '';
-  } finally {
-    submitBtn.disabled = false;
-    submitBtn.textContent = 'Ask';
-    updateSubmitState();
-  }
+  }catch(e){
+    document.getElementById('loading-state').classList.remove('vis');document.getElementById('result').classList.add('vis');document.getElementById('hero').classList.add('compact');
+    document.getElementById('err-field').style.display='block';document.getElementById('err-text').textContent=e.message||'Request failed. Please try again.';
+  }finally{submitBtn.disabled=false;askBtnText.textContent='ASK GOA';sp.remove();document.querySelector('.ba .ar').style.display='';updateSubmitState()}
 }
+
+function backToHero(){document.getElementById('result').classList.remove('vis');document.getElementById('hero').classList.remove('compact');document.getElementById('err-field').style.display='none';window.scrollTo({top:0,behavior:'smooth'})}
+function toggleSource(idx){document.querySelectorAll('.si')[idx].classList.toggle('open')}
 </script>
 </body>
 </html>
