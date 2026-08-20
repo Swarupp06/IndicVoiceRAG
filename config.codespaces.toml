@@ -50,7 +50,7 @@ top_k = 3
 
 [llm]
 provider = "groq"
-model_name = "llama-3.1-8b-instant"
+model_name = "openai/gpt-oss-20b"
 base_url = ""
 api_key_env = "GROQ_API_KEY"
 temperature = 0.0
